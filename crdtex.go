@@ -84,6 +84,15 @@ func (s State) checkUpdated(addr string, entry Entry) (uint64, bool) {
 	return seq + 1, false
 }
 
+func (s State) putEntry(addr string, entry Entry) State {
+	result := map[string]Entry{}
+	for k, v := range s {
+		result[k] = v
+	}
+	result[addr] = entry
+	return result
+}
+
 func uuidLess(a, b uuid.UUID) bool {
 	for k := 0; k < len(a); k++ {
 		if a[k] < b[k] {

@@ -389,3 +389,214 @@ func TestCoreService_Update__With_Expired_Addr(t *testing.T) {
 	assert.Equal(t, 2, len(expireTimer.ResetCalls()))
 	assert.Equal(t, 40*time.Second, expireDuration)
 }
+
+func TestCoreService_Sync_Call_Single_Remote(t *testing.T) {
+	t.Parallel()
+
+	methods := &InterfaceMock{}
+	methods.InitConnFunc = func(addr string) {}
+
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+			WithSyncDuration(3*time.Second),
+		))
+
+	var updateAddr string
+	var updateState State
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		updateAddr = addr
+		updateState = state
+		return state, nil
+	}
+
+	syncTimer := &TimerMock{}
+	s.syncTimer = syncTimer
+
+	syncTimer.ResetFunc = func(d time.Duration) {}
+
+	s.init(context.Background())
+
+	assert.Equal(t, 1, len(methods.UpdateRemoteCalls()))
+	var expected State = map[string]Entry{
+		"self-addr": {
+			Seq:     1,
+			NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version: 1,
+		},
+	}
+	assert.Equal(t, expected, updateState)
+
+	// Update
+	syncTimer.ChanFunc = func() <-chan time.Time {
+		return nil
+	}
+
+	respChan := make(chan State, 1)
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"self-addr": {
+				Seq:     10,
+				NodeID:  uuid.MustParse("6a4aca71-835b-4af1-8056-5a2643316024"),
+				Version: 20,
+			},
+		},
+		respChan: respChan,
+	}
+	s.run(context.Background())
+	drainUpdateResponseChan(respChan)
+
+	ch := make(chan time.Time, 1)
+
+	var syncResetDuration time.Duration
+	syncTimer.ResetAfterChanFunc = func(d time.Duration) {
+		syncResetDuration = d
+	}
+
+	// Sync Expire 1
+	ch <- time.Now()
+	syncTimer.ChanFunc = func() <-chan time.Time {
+		return ch
+	}
+
+	s.run(context.Background())
+
+	assert.Equal(t, 1, len(syncTimer.ResetAfterChanCalls()))
+	assert.Equal(t, 3*time.Second, syncResetDuration)
+
+	assert.Equal(t, 2, len(methods.UpdateRemoteCalls()))
+	expected = map[string]Entry{
+		"self-addr": {
+			Seq:     11,
+			NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version: 2,
+		},
+	}
+	assert.Equal(t, "remote-addr-1", updateAddr)
+	assert.Equal(t, expected, updateState)
+
+	// Sync Expire 2
+	ch <- time.Now()
+	s.run(context.Background())
+
+	assert.Equal(t, 2, len(syncTimer.ResetAfterChanCalls()))
+	assert.Equal(t, 3*time.Second, syncResetDuration)
+
+	assert.Equal(t, 3, len(methods.UpdateRemoteCalls()))
+	expected = map[string]Entry{
+		"self-addr": {
+			Seq:     11,
+			NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version: 3,
+		},
+	}
+	assert.Equal(t, "remote-addr-1", updateAddr)
+	assert.Equal(t, expected, updateState)
+}
+
+func TestCoreService_Sync_Call_Two_Remotes(t *testing.T) {
+	t.Parallel()
+
+	methods := &InterfaceMock{}
+	methods.InitConnFunc = func(addr string) {}
+
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+			AddRemoteAddress("remote-addr-2"),
+			WithSyncDuration(3*time.Second),
+		))
+
+	var updateAddr string
+	var updateState State
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		updateAddr = addr
+		updateState = state
+		return state, nil
+	}
+
+	syncTimer := &TimerMock{}
+	s.syncTimer = syncTimer
+
+	syncTimer.ResetFunc = func(d time.Duration) {}
+
+	s.init(context.Background())
+
+	assert.Equal(t, 2, len(methods.UpdateRemoteCalls()))
+	var expected State = map[string]Entry{
+		"self-addr": {
+			Seq:     1,
+			NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version: 1,
+		},
+	}
+	assert.Equal(t, expected, updateState)
+
+	// Update
+	syncTimer.ChanFunc = func() <-chan time.Time {
+		return nil
+	}
+
+	respChan := make(chan State, 1)
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"self-addr": {
+				Seq:     10,
+				NodeID:  uuid.MustParse("6a4aca71-835b-4af1-8056-5a2643316024"),
+				Version: 20,
+			},
+		},
+		respChan: respChan,
+	}
+	s.run(context.Background())
+	drainUpdateResponseChan(respChan)
+
+	ch := make(chan time.Time, 1)
+
+	var syncResetDuration time.Duration
+	syncTimer.ResetAfterChanFunc = func(d time.Duration) {
+		syncResetDuration = d
+	}
+
+	// Sync Expire 1
+	ch <- time.Now()
+	syncTimer.ChanFunc = func() <-chan time.Time {
+		return ch
+	}
+
+	s.run(context.Background())
+
+	assert.Equal(t, 1, len(syncTimer.ResetAfterChanCalls()))
+	assert.Equal(t, 3*time.Second, syncResetDuration)
+
+	assert.Equal(t, 3, len(methods.UpdateRemoteCalls()))
+	expected = map[string]Entry{
+		"self-addr": {
+			Seq:     11,
+			NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version: 2,
+		},
+	}
+	assert.Equal(t, "remote-addr-1", updateAddr)
+	assert.Equal(t, expected, updateState)
+
+	// Sync Expire 2
+	ch <- time.Now()
+	s.run(context.Background())
+
+	assert.Equal(t, 2, len(syncTimer.ResetAfterChanCalls()))
+	assert.Equal(t, 3*time.Second, syncResetDuration)
+
+	assert.Equal(t, 4, len(methods.UpdateRemoteCalls()))
+	expected = map[string]Entry{
+		"self-addr": {
+			Seq:     11,
+			NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version: 3,
+		},
+	}
+	assert.Equal(t, "remote-addr-2", updateAddr)
+	assert.Equal(t, expected, updateState)
+}

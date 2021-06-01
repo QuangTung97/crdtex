@@ -26,8 +26,11 @@ type coreService struct {
 	finishChan chan struct{}
 	updateChan chan updateRequest
 
-	state      State
-	lastUpdate map[string]time.Time
+	state         State
+	stateSeq      uint64
+	stateVersion  uint64
+	lastUpdate    map[string]time.Time
+	nextAddrIndex int
 }
 
 func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options serviceOptions) *coreService {
@@ -48,12 +51,16 @@ func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options se
 		finishChan: finishChan,
 		updateChan: updateChan,
 
-		lastUpdate: map[string]time.Time{},
+		lastUpdate:    map[string]time.Time{},
+		nextAddrIndex: 0,
 	}
 }
 
 func (s *coreService) updateWithState(inputState State) {
 	now := s.getNow()
+
+	// TODO sync duration (checkUpdated)
+	// TODO expire duration timer channel
 
 	newState := combineStates(s.state, inputState)
 	for newAddr, newEntry := range newState {
@@ -87,8 +94,7 @@ func (s *coreService) updateWithState(inputState State) {
 	s.state = newState
 }
 
-func (s *coreService) initAndCall(ctx context.Context, addr string) {
-	s.methods.InitConn(addr)
+func (s *coreService) callUpdateRemote(ctx context.Context, addr string) {
 	ctx, cancel := context.WithTimeout(ctx, s.options.callRemoteTimeout)
 	defer cancel()
 
@@ -101,14 +107,21 @@ func (s *coreService) initAndCall(ctx context.Context, addr string) {
 	s.updateWithState(remoteState)
 }
 
+func (s *coreService) initAndCall(ctx context.Context, addr string) {
+	s.methods.InitConn(addr)
+	s.callUpdateRemote(ctx, addr)
+}
+
 func (s *coreService) init(ctx context.Context) {
 	s.syncTimer.Reset(s.options.syncDuration)
 
+	s.stateSeq = 1
+	s.stateVersion = 1
 	newState := map[string]Entry{
 		s.selfAddr: {
-			Seq:     1,
+			Seq:     s.stateSeq,
 			NodeID:  s.selfNodeID,
-			Version: 1,
+			Version: s.stateVersion,
 		},
 	}
 	s.state = newState
@@ -123,6 +136,25 @@ func (s *coreService) run(ctx context.Context) {
 	case req := <-s.updateChan:
 		s.updateWithState(req.state)
 		req.respChan <- s.state
+
+	case <-s.syncTimer.Chan():
+		s.syncTimer.ResetAfterChan(s.options.syncDuration)
+
+		s.stateVersion++
+		newEntry := Entry{
+			Seq:     s.stateSeq,
+			NodeID:  s.selfNodeID,
+			Version: s.stateVersion,
+		}
+		newSeq, updated := s.state.checkUpdated(s.selfAddr, newEntry)
+		if !updated {
+			newEntry.Seq = newSeq
+		}
+		s.state = s.state.putEntry(s.selfAddr, newEntry)
+
+		remoteAddr := s.options.remoteAddresses[s.nextAddrIndex]
+		s.nextAddrIndex += (s.nextAddrIndex + 1) % len(s.options.remoteAddresses)
+		s.callUpdateRemote(ctx, remoteAddr)
 	}
 }
 
