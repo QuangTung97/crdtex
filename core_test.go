@@ -222,6 +222,7 @@ func TestCoreService_Update__Check_Expire_Timer(t *testing.T) {
 	assert.Equal(t, 40*time.Second, expireDuration)
 
 	//========================================================
+	// With different address
 	s.updateChan <- updateRequest{
 		state: map[string]Entry{
 			"remote-addr-2": {
@@ -243,6 +244,7 @@ func TestCoreService_Update__Check_Expire_Timer(t *testing.T) {
 	assert.Equal(t, 32*time.Second, expireDuration)
 
 	//========================================================
+	// Same address as existing
 	s.updateChan <- updateRequest{
 		state: map[string]Entry{
 			"remote-addr-1": {
@@ -292,4 +294,43 @@ func TestCoreService_Init__Not_Reset_Expire(t *testing.T) {
 
 	assert.Equal(t, 1, len(methods.InitConnCalls()))
 	assert.Equal(t, 1, len(methods.UpdateRemoteCalls()))
+}
+
+func TestCoreService_Update__With_Self_Addr__Not_Reset_Expire(t *testing.T) {
+	t.Parallel()
+
+	methods := &InterfaceMock{}
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(WithExpireDuration(40*time.Second)),
+	)
+
+	expireTimer := &TimerMock{}
+	s.expireTimer = expireTimer
+
+	expireTimer.ResetFunc = func(d time.Duration) {}
+
+	s.init(context.Background())
+
+	assert.Equal(t, 0, len(expireTimer.ResetCalls()))
+
+	//========================================================
+	respChan := make(chan State, 1)
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"self-addr": {
+				Seq:     1,
+				NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+				Version: 2,
+			},
+		},
+		respChan: respChan,
+	}
+
+	s.run(context.Background())
+
+	assert.Equal(t, 1, len(respChan))
+	drainUpdateResponseChan(respChan)
+
+	assert.Equal(t, 0, len(expireTimer.ResetCalls()))
 }

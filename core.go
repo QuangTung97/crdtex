@@ -57,6 +57,10 @@ func (s *coreService) updateWithState(inputState State) {
 
 	newState := combineStates(s.state, inputState)
 	for newAddr, newEntry := range newState {
+		if newAddr == s.selfAddr {
+			continue
+		}
+
 		old, existed := s.state[newAddr]
 		if !existed {
 			s.lastUpdate[newAddr] = now
