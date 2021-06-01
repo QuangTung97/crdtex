@@ -1,6 +1,7 @@
 package crdtex
 
 import (
+	"context"
 	"github.com/google/uuid"
 )
 
@@ -13,6 +14,15 @@ type Entry struct {
 
 // State ...
 type State map[string]Entry
+
+//go:generate moq -out interface_mock_test.go . Interface
+
+// Interface ...
+type Interface interface {
+	Start(ctx context.Context, finish chan<- struct{})
+	InitConn(addr string)
+	UpdateRemote(ctx context.Context, addr string, state State) (State, error)
+}
 
 func entryLess(a, b Entry) bool {
 	if a.Seq < b.Seq {
