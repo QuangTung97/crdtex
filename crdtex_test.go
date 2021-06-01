@@ -261,7 +261,8 @@ func TestCheckUpdated(t *testing.T) {
 		state    State
 		newAddr  string
 		newEntry Entry
-		expected bool
+		newSeq   uint64
+		updated  bool
 	}{
 		{
 			name:    "entry-not-existed",
@@ -271,7 +272,7 @@ func TestCheckUpdated(t *testing.T) {
 				NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
 				Version: 10,
 			},
-			expected: true,
+			updated: true,
 		},
 		{
 			name: "entry-existed-different-id-seq-less",
@@ -288,7 +289,8 @@ func TestCheckUpdated(t *testing.T) {
 				NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
 				Version: 20,
 			},
-			expected: false,
+			newSeq:  6,
+			updated: false,
 		},
 		{
 			name: "entry-existed-same-seq-id-less",
@@ -305,10 +307,29 @@ func TestCheckUpdated(t *testing.T) {
 				NodeID:  uuid.MustParse("a1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
 				Version: 20,
 			},
-			expected: false,
+			newSeq:  6,
+			updated: false,
 		},
 		{
-			name: "entry-existed-same-id-same-seq-",
+			name: "entry-existed-seq-less-id-greater",
+			state: map[string]Entry{
+				"address1": {
+					Seq:     5,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+			newAddr: "address1",
+			newEntry: Entry{
+				Seq:     4,
+				NodeID:  uuid.MustParse("c1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+				Version: 20,
+			},
+			newSeq:  5,
+			updated: false,
+		},
+		{
+			name: "entry-existed-same-id-same-seq-version-greater",
 			state: map[string]Entry{
 				"address1": {
 					Seq:     5,
@@ -322,7 +343,7 @@ func TestCheckUpdated(t *testing.T) {
 				NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
 				Version: 11,
 			},
-			expected: true,
+			updated: true,
 		},
 	}
 
@@ -331,8 +352,9 @@ func TestCheckUpdated(t *testing.T) {
 		t.Run(e.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := e.state.checkUpdated(e.newAddr, e.newEntry)
-			assert.Equal(t, e.expected, result)
+			newSeq, updated := e.state.checkUpdated(e.newAddr, e.newEntry)
+			assert.Equal(t, e.updated, updated)
+			assert.Equal(t, e.newSeq, newSeq)
 		})
 	}
 }

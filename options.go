@@ -7,6 +7,7 @@ type serviceOptions struct {
 	remoteAddresses   []string
 }
 
+// Option ...
 type Option func(opts *serviceOptions)
 
 func defaultServiceOptions() serviceOptions {

@@ -56,12 +56,24 @@ func combineStates(a, b State) State {
 	return result
 }
 
-func (s State) checkUpdated(addr string, entry Entry) bool {
+func (s State) checkUpdated(addr string, entry Entry) (uint64, bool) {
 	previous, existed := s[addr]
 	if !existed {
-		return true
+		return 0, true
 	}
-	return entryLess(previous, entry)
+	updated := entryLess(previous, entry)
+	if updated {
+		return 0, true
+	}
+
+	seq := previous.Seq
+	newEntry := entry
+	newEntry.Seq = seq
+
+	if entryLess(previous, newEntry) {
+		return seq, false
+	}
+	return seq + 1, false
 }
 
 func uuidLess(a, b uuid.UUID) bool {
