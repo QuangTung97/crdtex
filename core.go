@@ -24,6 +24,7 @@ type coreService struct {
 	expireTimer Timer
 
 	finishChan chan struct{}
+	cancel     func()
 	updateChan chan updateRequest
 
 	state         State
@@ -59,8 +60,8 @@ func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options se
 func (s *coreService) updateWithState(inputState State) {
 	now := s.getNow()
 
-	// TODO sync duration (checkUpdated)
 	// TODO expire duration timer channel
+	// TODO change leader
 
 	newState := combineStates(s.state, inputState)
 	for newAddr, newEntry := range newState {
@@ -128,6 +129,13 @@ func (s *coreService) init(ctx context.Context) {
 
 	for _, remoteAddr := range s.options.remoteAddresses {
 		s.initAndCall(ctx, remoteAddr)
+	}
+
+	leaderID := s.state.computeLeader(s.selfAddr, s.getNow().Add(-s.options.expireDuration), s.lastUpdate)
+	if leaderID == s.selfNodeID {
+		startCtx, cancel := context.WithCancel(ctx)
+		s.cancel = cancel
+		s.methods.Start(startCtx, s.finishChan)
 	}
 }
 

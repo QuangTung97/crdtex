@@ -8,10 +8,20 @@ import (
 	"time"
 )
 
+func newInterfaceMock() *InterfaceMock {
+	methods := &InterfaceMock{}
+	methods.InitConnFunc = func(addr string) {}
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		return state, nil
+	}
+	methods.StartFunc = func(ctx context.Context, finish chan<- struct{}) {}
+	return methods
+}
+
 func TestCoreService_Init__InitConn_And_UpdateRemote(t *testing.T) {
 	t.Parallel()
 
-	methods := &InterfaceMock{}
+	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
 	s := newCoreService(methods, "self-addr", id,
 		computeOptions(
@@ -71,7 +81,7 @@ func mustParse(s string) time.Time {
 func TestCoreService_Init__InitConn_And_UpdateRemote_ReturnNew(t *testing.T) {
 	t.Parallel()
 
-	methods := &InterfaceMock{}
+	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
 	s := newCoreService(methods, "self-addr", id,
 		computeOptions(
@@ -85,9 +95,6 @@ func TestCoreService_Init__InitConn_And_UpdateRemote_ReturnNew(t *testing.T) {
 	var expireDuration time.Duration
 	expireTimer.ResetFunc = func(d time.Duration) {
 		expireDuration = d
-	}
-
-	methods.InitConnFunc = func(addr string) {
 	}
 
 	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
@@ -140,7 +147,7 @@ func drainUpdateResponseChan(ch <-chan State) State {
 func TestCoreService__Without_Remote_Addr__Update(t *testing.T) {
 	t.Parallel()
 
-	methods := &InterfaceMock{}
+	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
 	s := newCoreService(methods, "self-addr", id, computeOptions())
 
@@ -181,7 +188,7 @@ func TestCoreService__Without_Remote_Addr__Update(t *testing.T) {
 func TestCoreService_Update__Check_Expire_Timer(t *testing.T) {
 	t.Parallel()
 
-	methods := &InterfaceMock{}
+	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
 	s := newCoreService(methods, "self-addr", id,
 		computeOptions(WithExpireDuration(40*time.Second)),
@@ -269,7 +276,7 @@ func TestCoreService_Update__Check_Expire_Timer(t *testing.T) {
 func TestCoreService_Init__Not_Reset_Expire(t *testing.T) {
 	t.Parallel()
 
-	methods := &InterfaceMock{}
+	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
 	s := newCoreService(methods, "self-addr", id,
 		computeOptions(
@@ -283,11 +290,6 @@ func TestCoreService_Init__Not_Reset_Expire(t *testing.T) {
 
 	expireTimer.ResetFunc = func(d time.Duration) {}
 
-	methods.InitConnFunc = func(addr string) {}
-	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
-		return state, nil
-	}
-
 	s.init(context.Background())
 
 	assert.Equal(t, 0, len(expireTimer.ResetCalls()))
@@ -299,7 +301,7 @@ func TestCoreService_Init__Not_Reset_Expire(t *testing.T) {
 func TestCoreService_Update__With_Self_Addr__Not_Reset_Expire(t *testing.T) {
 	t.Parallel()
 
-	methods := &InterfaceMock{}
+	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
 	s := newCoreService(methods, "self-addr", id,
 		computeOptions(WithExpireDuration(40*time.Second)),
@@ -338,7 +340,7 @@ func TestCoreService_Update__With_Self_Addr__Not_Reset_Expire(t *testing.T) {
 func TestCoreService_Update__With_Expired_Addr(t *testing.T) {
 	t.Parallel()
 
-	methods := &InterfaceMock{}
+	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
 	s := newCoreService(methods, "self-addr", id,
 		computeOptions(WithExpireDuration(40*time.Second)),
@@ -393,8 +395,7 @@ func TestCoreService_Update__With_Expired_Addr(t *testing.T) {
 func TestCoreService_Sync_Call_Single_Remote(t *testing.T) {
 	t.Parallel()
 
-	methods := &InterfaceMock{}
-	methods.InitConnFunc = func(addr string) {}
+	methods := newInterfaceMock()
 
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
 	s := newCoreService(methods, "self-addr", id,
@@ -498,8 +499,7 @@ func TestCoreService_Sync_Call_Single_Remote(t *testing.T) {
 func TestCoreService_Sync_Call_Two_Remotes(t *testing.T) {
 	t.Parallel()
 
-	methods := &InterfaceMock{}
-	methods.InitConnFunc = func(addr string) {}
+	methods := newInterfaceMock()
 
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
 	s := newCoreService(methods, "self-addr", id,
@@ -599,4 +599,50 @@ func TestCoreService_Sync_Call_Two_Remotes(t *testing.T) {
 	}
 	assert.Equal(t, "remote-addr-2", updateAddr)
 	assert.Equal(t, expected, updateState)
+}
+
+func TestCoreService_Init__Only_Node__Start_Runner(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+		),
+	)
+
+	var startCtx context.Context
+	methods.StartFunc = func(ctx context.Context, finish chan<- struct{}) {
+		startCtx = ctx
+	}
+
+	s.init(context.Background())
+
+	assert.Equal(t, 1, len(methods.StartCalls()))
+	assert.NotEqual(t, context.Background(), startCtx)
+}
+
+func TestCoreService_Init__Have_Existing_Node_With_Smaller_ID__Not_Start_Runner(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+		),
+	)
+
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		return state.putEntry("remote-addr-1", Entry{
+			Seq:     1,
+			NodeID:  uuid.MustParse("693cb116-6b95-4d8e-893f-86106185b638"),
+			Version: 1,
+		}), nil
+	}
+
+	s.init(context.Background())
+
+	assert.Equal(t, 0, len(methods.StartCalls()))
 }

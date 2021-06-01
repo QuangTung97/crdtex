@@ -3,6 +3,7 @@ package crdtex
 import (
 	"context"
 	"github.com/google/uuid"
+	"sort"
 	"time"
 )
 
@@ -91,6 +92,46 @@ func (s State) putEntry(addr string, entry Entry) State {
 	}
 	result[addr] = entry
 	return result
+}
+
+type sortUUID []uuid.UUID
+
+var _ sort.Interface = sortUUID{}
+
+func (s sortUUID) Len() int {
+	return len(s)
+}
+
+func (s sortUUID) Less(i, j int) bool {
+	return uuidLess(s[i], s[j])
+}
+
+func (s sortUUID) Swap(i, j int) {
+	s[j], s[i] = s[i], s[j]
+}
+
+func (s State) computeLeader(selfAddr string, minTime time.Time, lastUpdate map[string]time.Time) uuid.UUID {
+	var idList []uuid.UUID
+	idList = append(idList, s[selfAddr].NodeID)
+
+	for addr, e := range s {
+		if addr == selfAddr {
+			continue
+		}
+		lastTime, ok := lastUpdate[addr]
+		if !ok {
+			continue
+		}
+
+		// now >= t + 30 => false
+		// now - 30 >= t => false
+		// t > now - 30 => true
+		if lastTime.After(minTime) {
+			idList = append(idList, e.NodeID)
+		}
+	}
+	sort.Sort(sortUUID(idList))
+	return idList[len(idList) - 1]
 }
 
 func uuidLess(a, b uuid.UUID) bool {

@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestCombineStates(t *testing.T) {
@@ -404,6 +405,56 @@ func TestUUIDLess(t *testing.T) {
 
 			result := uuidLess(e.a, e.b)
 			assert.Equal(t, e.expected, result)
+		})
+	}
+}
+
+func TestComputeLeader(t *testing.T) {
+	table := []struct {
+		name         string
+		selfAddr     string
+		minTime      time.Time
+		lastUpdate   map[string]time.Time
+		state        State
+		expectedID   uuid.UUID
+	}{
+		{
+			name:     "is-self-addr",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+			},
+			minTime:      mustParse("2021-06-05T10:20:00Z"),
+			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+		},
+		{
+			name:     "existing-node",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+				"address-2": {
+					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{
+				"address-2": mustParse("2021-06-05T10:20:01Z"),
+			},
+			expectedID:   uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+		},
+	}
+
+	for _, tc := range table {
+		e := tc
+		t.Run(e.name, func(t *testing.T) {
+			t.Parallel()
+
+			id := e.state.computeLeader(e.selfAddr, e.minTime, e.lastUpdate)
+			assert.Equal(t, e.expectedID, id)
 		})
 	}
 }
