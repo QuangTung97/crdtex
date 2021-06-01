@@ -14,6 +14,21 @@ type Entry struct {
 // State ...
 type State map[string]Entry
 
+func entryLess(a, b Entry) bool {
+	if a.Seq < b.Seq {
+		return true
+	}
+	if a.Seq == b.Seq {
+		if uuidLess(a.NodeID, b.NodeID) {
+			return true
+		}
+		if a.NodeID == b.NodeID {
+			return a.Version < b.Version
+		}
+	}
+	return false
+}
+
 func combineStates(a, b State) State {
 	result := map[string]Entry{}
 	for k, v := range a {
@@ -22,16 +37,21 @@ func combineStates(a, b State) State {
 	for k, v := range b {
 		previous, existed := result[k]
 		if existed {
-			if previous.Seq > v.Seq {
-				continue
-			}
-			if previous.Seq == v.Seq && !uuidLess(previous.NodeID, v.NodeID) {
+			if !entryLess(previous, v) {
 				continue
 			}
 		}
 		result[k] = v
 	}
 	return result
+}
+
+func (s State) checkUpdated(addr string, entry Entry) bool {
+	previous, existed := s[addr]
+	if !existed {
+		return true
+	}
+	return entryLess(previous, entry)
 }
 
 func uuidLess(a, b uuid.UUID) bool {

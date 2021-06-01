@@ -196,12 +196,142 @@ func TestCombineStates(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "a-b-same-key-same-seq-same-id-a-version-less",
+			a: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+			b: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 11,
+				},
+			},
+			expected: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 11,
+				},
+			},
+		},
+		{
+			name: "a-b-same-key-same-seq-same-id-a-version-greater",
+			a: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 12,
+				},
+			},
+			b: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 11,
+				},
+			},
+			expected: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 12,
+				},
+			},
+		},
 	}
 	for _, tc := range table {
 		e := tc
 		t.Run(e.name, func(t *testing.T) {
 			t.Parallel()
 			result := combineStates(e.a, e.b)
+			assert.Equal(t, e.expected, result)
+		})
+	}
+}
+
+func TestCheckUpdated(t *testing.T) {
+	table := []struct {
+		name     string
+		state    State
+		newAddr  string
+		newEntry Entry
+		expected bool
+	}{
+		{
+			name:    "entry-not-existed",
+			newAddr: "address1",
+			newEntry: Entry{
+				Seq:     1,
+				NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+				Version: 10,
+			},
+			expected: true,
+		},
+		{
+			name: "entry-existed-different-id-seq-less",
+			state: map[string]Entry{
+				"address1": {
+					Seq:     5,
+					NodeID:  uuid.MustParse("cda641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+			newAddr: "address1",
+			newEntry: Entry{
+				Seq:     4,
+				NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+				Version: 20,
+			},
+			expected: false,
+		},
+		{
+			name: "entry-existed-same-seq-id-less",
+			state: map[string]Entry{
+				"address1": {
+					Seq:     5,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+			newAddr: "address1",
+			newEntry: Entry{
+				Seq:     5,
+				NodeID:  uuid.MustParse("a1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+				Version: 20,
+			},
+			expected: false,
+		},
+		{
+			name: "entry-existed-same-id-same-seq-",
+			state: map[string]Entry{
+				"address1": {
+					Seq:     5,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+			newAddr: "address1",
+			newEntry: Entry{
+				Seq:     5,
+				NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+				Version: 11,
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range table {
+		e := tc
+		t.Run(e.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := e.state.checkUpdated(e.newAddr, e.newEntry)
 			assert.Equal(t, e.expected, result)
 		})
 	}
