@@ -74,7 +74,7 @@ func (s *coreService) updateWithState(inputState State) {
 	minAddr := ""
 	minUpdate := now.AddDate(100, 0, 0)
 	for addr, t := range s.lastUpdate {
-		if minUpdate.After(t) {
+		if !t.Add(s.options.expireDuration).Before(now) && minUpdate.After(t) {
 			minUpdate = t
 			minAddr = addr
 		}
