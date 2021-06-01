@@ -2,48 +2,46 @@ package crdtex
 
 import (
 	"github.com/google/uuid"
-	"sort"
-	"time"
 )
 
 // Entry ...
 type Entry struct {
-	Addr       string
-	Version    uint64
-	Deleted    bool
-	LastUpdate time.Time
+	Seq     uint64
+	NodeID  uuid.UUID
+	Version uint64
 }
 
 // State ...
-type State map[uuid.UUID]Entry
+type State map[string]Entry
 
 func combineStates(a, b State) State {
-	result := map[uuid.UUID]Entry{}
+	result := map[string]Entry{}
 	for k, v := range a {
 		result[k] = v
 	}
 	for k, v := range b {
-		prev, existed := result[k]
+		previous, existed := result[k]
 		if existed {
-			if prev.Version < v.Version {
-				result[k] = v
+			if previous.Seq > v.Seq {
+				continue
 			}
-		} else {
-			result[k] = v
+			if previous.Seq == v.Seq && !uuidLess(previous.NodeID, v.NodeID) {
+				continue
+			}
 		}
+		result[k] = v
 	}
 	return result
 }
 
-func computeAddressSet(s State) []string {
-	set := map[string]struct{}{}
-	for _, e := range s {
-		set[e.Addr] = struct{}{}
+func uuidLess(a, b uuid.UUID) bool {
+	for k := 0; k < len(a); k++ {
+		if a[k] < b[k] {
+			return true
+		}
+		if a[k] > b[k] {
+			return false
+		}
 	}
-	result := make([]string, 0, len(set))
-	for e := range set {
-		result = append(result, e)
-	}
-	sort.Strings(result)
-	return result
+	return false
 }

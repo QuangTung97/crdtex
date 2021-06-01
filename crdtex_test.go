@@ -15,106 +15,184 @@ func TestCombineStates(t *testing.T) {
 	}{
 		{
 			name:     "empty-with-empty",
-			expected: map[uuid.UUID]Entry{},
+			expected: map[string]Entry{},
 		},
 		{
 			name: "a-non-empty",
-			a: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr: "address1",
+			a: map[string]Entry{
+				"address1": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 1,
 				},
-				uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"): {
-					Addr: "address2",
+				"address2": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+					Version: 2,
 				},
 			},
-			expected: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr: "address1",
+			expected: map[string]Entry{
+				"address1": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 1,
 				},
-				uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"): {
-					Addr: "address2",
+				"address2": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+					Version: 2,
 				},
 			},
 		},
 		{
 			name: "b-non-empty",
-			b: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr: "address1",
+			b: map[string]Entry{
+				"address1": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 1,
 				},
-				uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"): {
-					Addr: "address2",
+				"address2": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+					Version: 2,
 				},
 			},
-			expected: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr: "address1",
+			expected: map[string]Entry{
+				"address1": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 1,
 				},
-				uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"): {
-					Addr: "address2",
+				"address2": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+					Version: 2,
 				},
 			},
 		},
 		{
 			name: "a-b-different-keys",
-			a: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr: "address1",
-				},
-			},
-			b: map[uuid.UUID]Entry{
-				uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"): {
-					Addr: "address2",
-				},
-			},
-			expected: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr: "address1",
-				},
-				uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"): {
-					Addr: "address2",
-				},
-			},
-		},
-		{
-			name: "a-b-same-key-a-higher-version",
-			a: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr:    "address1a",
-					Version: 2,
-				},
-			},
-			b: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr:    "address1",
+			a: map[string]Entry{
+				"address1": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
 					Version: 1,
 				},
 			},
-			expected: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr:    "address1a",
+			b: map[string]Entry{
+				"address2": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+					Version: 2,
+				},
+			},
+			expected: map[string]Entry{
+				"address1": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 1,
+				},
+				"address2": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
 					Version: 2,
 				},
 			},
 		},
 		{
-			name: "a-b-same-key-b-higher-version",
-			a: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr:    "address1a",
-					Version: 2,
+			name: "a-b-same-key-a-higher-seq",
+			a: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
 				},
 			},
-			b: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr:    "address1b",
-					Version: 3,
+			b: map[string]Entry{
+				"address1": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("c1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 1,
 				},
 			},
-			expected: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr:    "address1b",
-					Version: 3,
+			expected: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+		},
+		{
+			name: "a-b-same-key-b-higher-seq",
+			a: map[string]Entry{
+				"address1": {
+					Seq:     1,
+					NodeID:  uuid.MustParse("c1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 1,
+				},
+			},
+			b: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+			expected: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+		},
+		{
+			name: "a-b-same-key-same-seq-a-id-less",
+			a: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("a1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+			b: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 11,
+				},
+			},
+			expected: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 11,
+				},
+			},
+		},
+		{
+			name: "a-b-same-key-same-seq-b-id-less",
+			a: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("c1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
+				},
+			},
+			b: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 11,
+				},
+			},
+			expected: map[string]Entry{
+				"address1": {
+					Seq:     2,
+					NodeID:  uuid.MustParse("c1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version: 10,
 				},
 			},
 		},
@@ -129,54 +207,42 @@ func TestCombineStates(t *testing.T) {
 	}
 }
 
-func TestComputeAddressSet(t *testing.T) {
+func TestUUIDLess(t *testing.T) {
 	table := []struct {
 		name     string
-		state    State
-		expected []string
+		a        uuid.UUID
+		b        uuid.UUID
+		expected bool
 	}{
 		{
-			name:     "empty",
-			state:    map[uuid.UUID]Entry{},
-			expected: []string{},
+			name:     "equal",
+			a:        uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			b:        uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			expected: false,
 		},
 		{
-			name: "single",
-			state: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr:    "address1",
-					Version: 3,
-				},
-			},
-			expected: []string{"address1"},
+			name:     "less",
+			a:        uuid.MustParse("a1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			b:        uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			expected: true,
 		},
 		{
-			name: "two-same-addr",
-			state: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr:    "address1",
-					Version: 3,
-				},
-				uuid.MustParse("08998891-6bd6-424f-a722-51b761865ef0"): {
-					Addr:    "address1",
-					Version: 4,
-				},
-			},
-			expected: []string{"address1"},
+			name:     "less",
+			a:        uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			b:        uuid.MustParse("b2a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			expected: true,
 		},
 		{
-			name: "two-not-same-addr",
-			state: map[uuid.UUID]Entry{
-				uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"): {
-					Addr:    "address2",
-					Version: 3,
-				},
-				uuid.MustParse("08998891-6bd6-424f-a722-51b761865ef0"): {
-					Addr:    "address1",
-					Version: 4,
-				},
-			},
-			expected: []string{"address1", "address2"},
+			name:     "greater",
+			a:        uuid.MustParse("c1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			b:        uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			expected: false,
+		},
+		{
+			name:     "greater",
+			a:        uuid.MustParse("c1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			b:        uuid.MustParse("b2a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+			expected: false,
 		},
 	}
 	for _, tc := range table {
@@ -184,7 +250,7 @@ func TestComputeAddressSet(t *testing.T) {
 		t.Run(e.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := computeAddressSet(e.state)
+			result := uuidLess(e.a, e.b)
 			assert.Equal(t, e.expected, result)
 		})
 	}
