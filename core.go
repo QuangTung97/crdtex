@@ -148,6 +148,7 @@ func (s *coreService) run(ctx context.Context) {
 		}
 		newSeq, updated := s.state.checkUpdated(s.selfAddr, newEntry)
 		if !updated {
+			s.stateSeq = newSeq
 			newEntry.Seq = newSeq
 		}
 		s.state = s.state.putEntry(s.selfAddr, newEntry)
