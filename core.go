@@ -15,15 +15,19 @@ type updateRequest struct {
 type coreService struct {
 	methods Interface
 
-	selfAddr          string
-	selfNodeID        uuid.UUID
-	remoteAddresses   []string
-	callRemoteTimeout time.Duration
+	selfAddr   string
+	selfNodeID uuid.UUID
+	options    serviceOptions
+
+	getNow      func() time.Time
+	syncTimer   Timer
+	expireTimer Timer
 
 	finishChan chan struct{}
 	updateChan chan updateRequest
 
-	state State
+	state      State
+	lastUpdate map[string]time.Time
 }
 
 func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options serviceOptions) *coreService {
@@ -32,19 +36,56 @@ func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options se
 	return &coreService{
 		methods: methods,
 
-		selfAddr:          addr,
-		selfNodeID:        nodeID,
-		remoteAddresses:   options.remoteAddresses,
-		callRemoteTimeout: options.callRemoteTimeout,
+		selfAddr:   addr,
+		selfNodeID: nodeID,
+
+		options: options,
+
+		getNow:      func() time.Time { return time.Now() },
+		syncTimer:   newTimer(),
+		expireTimer: newTimer(),
 
 		finishChan: finishChan,
 		updateChan: updateChan,
+
+		lastUpdate: map[string]time.Time{},
 	}
+}
+
+func (s *coreService) updateWithState(inputState State) {
+	now := s.getNow()
+
+	newState := combineStates(s.state, inputState)
+	for newAddr, newEntry := range newState {
+		old, existed := s.state[newAddr]
+		if !existed {
+			s.lastUpdate[newAddr] = now
+			continue
+		}
+		if old != newEntry {
+			s.lastUpdate[newAddr] = now
+		}
+	}
+
+	minAddr := ""
+	minUpdate := now.AddDate(100, 0, 0)
+	for addr, t := range s.lastUpdate {
+		if minUpdate.After(t) {
+			minUpdate = t
+			minAddr = addr
+		}
+	}
+
+	if minAddr != "" {
+		s.expireTimer.Reset(minUpdate.Add(s.options.expireDuration).Sub(now))
+	}
+
+	s.state = newState
 }
 
 func (s *coreService) initAndCall(ctx context.Context, addr string) {
 	s.methods.InitConn(addr)
-	ctx, cancel := context.WithTimeout(ctx, s.callRemoteTimeout)
+	ctx, cancel := context.WithTimeout(ctx, s.options.callRemoteTimeout)
 	defer cancel()
 
 	remoteState, err := s.methods.UpdateRemote(ctx, addr, s.state)
@@ -53,22 +94,22 @@ func (s *coreService) initAndCall(ctx context.Context, addr string) {
 		fmt.Println("Error:", err)
 		return
 	}
-	s.state = combineStates(s.state, remoteState)
+	s.updateWithState(remoteState)
 }
 
 func (s *coreService) init(ctx context.Context) {
-	newState := map[string]Entry{}
-	for k, v := range s.state {
-		newState[k] = v
-	}
-	newState[s.selfAddr] = Entry{
-		Seq:     1,
-		NodeID:  s.selfNodeID,
-		Version: 1,
+	s.syncTimer.Reset(s.options.syncDuration)
+
+	newState := map[string]Entry{
+		s.selfAddr: {
+			Seq:     1,
+			NodeID:  s.selfNodeID,
+			Version: 1,
+		},
 	}
 	s.state = newState
 
-	for _, remoteAddr := range s.remoteAddresses {
+	for _, remoteAddr := range s.options.remoteAddresses {
 		s.initAndCall(ctx, remoteAddr)
 	}
 }
@@ -76,7 +117,7 @@ func (s *coreService) init(ctx context.Context) {
 func (s *coreService) run(ctx context.Context) {
 	select {
 	case req := <-s.updateChan:
-		s.state = combineStates(s.state, req.state)
+		s.updateWithState(req.state)
 		req.respChan <- s.state
 	}
 }

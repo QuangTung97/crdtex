@@ -6,6 +6,7 @@ package crdtex
 import (
 	"context"
 	"sync"
+	"time"
 )
 
 // Ensure, that InterfaceMock does implement Interface.
@@ -174,5 +175,149 @@ func (mock *InterfaceMock) UpdateRemoteCalls() []struct {
 	mock.lockUpdateRemote.RLock()
 	calls = mock.calls.UpdateRemote
 	mock.lockUpdateRemote.RUnlock()
+	return calls
+}
+
+// Ensure, that TimerMock does implement Timer.
+// If this is not the case, regenerate this file with moq.
+var _ Timer = &TimerMock{}
+
+// TimerMock is a mock implementation of Timer.
+//
+// 	func TestSomethingThatUsesTimer(t *testing.T) {
+//
+// 		// make and configure a mocked Timer
+// 		mockedTimer := &TimerMock{
+// 			ChanFunc: func() <-chan time.Time {
+// 				panic("mock out the Chan method")
+// 			},
+// 			ResetFunc: func(d time.Duration)  {
+// 				panic("mock out the Reset method")
+// 			},
+// 			ResetAfterChanFunc: func(d time.Duration)  {
+// 				panic("mock out the ResetAfterChan method")
+// 			},
+// 		}
+//
+// 		// use mockedTimer in code that requires Timer
+// 		// and then make assertions.
+//
+// 	}
+type TimerMock struct {
+	// ChanFunc mocks the Chan method.
+	ChanFunc func() <-chan time.Time
+
+	// ResetFunc mocks the Reset method.
+	ResetFunc func(d time.Duration)
+
+	// ResetAfterChanFunc mocks the ResetAfterChan method.
+	ResetAfterChanFunc func(d time.Duration)
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// Chan holds details about calls to the Chan method.
+		Chan []struct {
+		}
+		// Reset holds details about calls to the Reset method.
+		Reset []struct {
+			// D is the d argument value.
+			D time.Duration
+		}
+		// ResetAfterChan holds details about calls to the ResetAfterChan method.
+		ResetAfterChan []struct {
+			// D is the d argument value.
+			D time.Duration
+		}
+	}
+	lockChan           sync.RWMutex
+	lockReset          sync.RWMutex
+	lockResetAfterChan sync.RWMutex
+}
+
+// Chan calls ChanFunc.
+func (mock *TimerMock) Chan() <-chan time.Time {
+	if mock.ChanFunc == nil {
+		panic("TimerMock.ChanFunc: method is nil but Timer.Chan was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockChan.Lock()
+	mock.calls.Chan = append(mock.calls.Chan, callInfo)
+	mock.lockChan.Unlock()
+	return mock.ChanFunc()
+}
+
+// ChanCalls gets all the calls that were made to Chan.
+// Check the length with:
+//     len(mockedTimer.ChanCalls())
+func (mock *TimerMock) ChanCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockChan.RLock()
+	calls = mock.calls.Chan
+	mock.lockChan.RUnlock()
+	return calls
+}
+
+// Reset calls ResetFunc.
+func (mock *TimerMock) Reset(d time.Duration) {
+	if mock.ResetFunc == nil {
+		panic("TimerMock.ResetFunc: method is nil but Timer.Reset was just called")
+	}
+	callInfo := struct {
+		D time.Duration
+	}{
+		D: d,
+	}
+	mock.lockReset.Lock()
+	mock.calls.Reset = append(mock.calls.Reset, callInfo)
+	mock.lockReset.Unlock()
+	mock.ResetFunc(d)
+}
+
+// ResetCalls gets all the calls that were made to Reset.
+// Check the length with:
+//     len(mockedTimer.ResetCalls())
+func (mock *TimerMock) ResetCalls() []struct {
+	D time.Duration
+} {
+	var calls []struct {
+		D time.Duration
+	}
+	mock.lockReset.RLock()
+	calls = mock.calls.Reset
+	mock.lockReset.RUnlock()
+	return calls
+}
+
+// ResetAfterChan calls ResetAfterChanFunc.
+func (mock *TimerMock) ResetAfterChan(d time.Duration) {
+	if mock.ResetAfterChanFunc == nil {
+		panic("TimerMock.ResetAfterChanFunc: method is nil but Timer.ResetAfterChan was just called")
+	}
+	callInfo := struct {
+		D time.Duration
+	}{
+		D: d,
+	}
+	mock.lockResetAfterChan.Lock()
+	mock.calls.ResetAfterChan = append(mock.calls.ResetAfterChan, callInfo)
+	mock.lockResetAfterChan.Unlock()
+	mock.ResetAfterChanFunc(d)
+}
+
+// ResetAfterChanCalls gets all the calls that were made to ResetAfterChan.
+// Check the length with:
+//     len(mockedTimer.ResetAfterChanCalls())
+func (mock *TimerMock) ResetAfterChanCalls() []struct {
+	D time.Duration
+} {
+	var calls []struct {
+		D time.Duration
+	}
+	mock.lockResetAfterChan.RLock()
+	calls = mock.calls.ResetAfterChan
+	mock.lockResetAfterChan.RUnlock()
 	return calls
 }

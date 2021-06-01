@@ -3,6 +3,7 @@ package crdtex
 import (
 	"context"
 	"github.com/google/uuid"
+	"time"
 )
 
 // Entry ...
@@ -15,13 +16,20 @@ type Entry struct {
 // State ...
 type State map[string]Entry
 
-//go:generate moq -out interface_mock_test.go . Interface
+//go:generate moq -out crdtex_mocks_test.go . Interface Timer
 
 // Interface ...
 type Interface interface {
 	Start(ctx context.Context, finish chan<- struct{})
 	InitConn(addr string)
 	UpdateRemote(ctx context.Context, addr string, state State) (State, error)
+}
+
+// Timer for timer
+type Timer interface {
+	Reset(d time.Duration)
+	ResetAfterChan(d time.Duration)
+	Chan() <-chan time.Time
 }
 
 func entryLess(a, b Entry) bool {
