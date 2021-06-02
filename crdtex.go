@@ -34,6 +34,66 @@ type Timer interface {
 	Chan() <-chan time.Time
 }
 
+// LeaderWatcher ...
+type LeaderWatcher struct {
+	coreWatcher *leaderWatcher
+	lastLeader  string
+}
+
+// Runner ...
+type Runner struct {
+	core *coreService
+}
+
+// NewRunner creates a Runner
+func NewRunner(methods Interface, selfAddr string, options ...Option) *Runner {
+	selfID, err := uuid.NewUUID()
+	if err != nil {
+		panic(err)
+	}
+
+	core := newCoreService(methods, selfAddr, selfID, computeOptions(options...))
+	return &Runner{
+		core: core,
+	}
+}
+
+// Run ...
+func (r *Runner) Run(ctx context.Context) {
+	r.core.init(ctx)
+	if ctx.Err() != nil {
+		return
+	}
+
+	for {
+		r.core.run(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+	}
+}
+
+// NewLeaderWatcher creates a watcher
+func (r *Runner) NewLeaderWatcher() *LeaderWatcher {
+	return &LeaderWatcher{
+		coreWatcher: r.core.newLeaderWatcher(),
+		lastLeader:  "",
+	}
+}
+
+// Watch ...
+func (w *LeaderWatcher) Watch(ctx context.Context) string {
+	ch := w.coreWatcher.watch(w.lastLeader)
+	select {
+	case leader := <-ch:
+		w.lastLeader = leader
+		return leader
+
+	case <-ctx.Done():
+		return ""
+	}
+}
+
 func boolLess(a, b bool) bool {
 	if a == b {
 		return false
