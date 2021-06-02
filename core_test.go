@@ -384,11 +384,185 @@ func TestCoreService_Update__With_Expired_Addr(t *testing.T) {
 		},
 		respChan: respChan,
 	}
-	s.getNow = func() time.Time { return mustParse("2021-06-05T10:20:41Z") }
+	s.getNow = func() time.Time { return mustParse("2021-06-05T10:20:40Z") }
 	s.run(context.Background())
 	drainUpdateResponseChan(respChan)
 
 	assert.Equal(t, 2, len(expireTimer.ResetCalls()))
+	assert.Equal(t, 40*time.Second, expireDuration)
+}
+
+func TestCoreService_Update__With_Nearly_Expired_Addr(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(WithExpireDuration(40*time.Second)),
+	)
+
+	expireTimer := &TimerMock{}
+	s.expireTimer = expireTimer
+
+	var expireDuration time.Duration
+	expireTimer.ResetFunc = func(d time.Duration) {
+		expireDuration = d
+	}
+
+	s.init(context.Background())
+
+	assert.Equal(t, 0, len(expireTimer.ResetCalls()))
+
+	//========================================================
+	respChan := make(chan State, 1)
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"remote-addr-1": {
+				Seq:     1,
+				NodeID:  uuid.MustParse("aa42c5b8-2a2c-4416-87d5-54e1e532fd39"),
+				Version: 2,
+			},
+		},
+		respChan: respChan,
+	}
+	s.getNow = func() time.Time { return mustParse("2021-06-05T10:20:00Z") }
+	s.run(context.Background())
+	drainUpdateResponseChan(respChan)
+
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"remote-addr-2": {
+				Seq:     1,
+				NodeID:  uuid.MustParse("66c8bd3e-3750-436c-a54a-a8e9a353f2bd"),
+				Version: 2,
+			},
+		},
+		respChan: respChan,
+	}
+	s.getNow = func() time.Time { return mustParse("2021-06-05T10:20:39Z") }
+	s.run(context.Background())
+	drainUpdateResponseChan(respChan)
+
+	assert.Equal(t, 2, len(expireTimer.ResetCalls()))
+	assert.Equal(t, 1*time.Second, expireDuration)
+}
+
+func TestCoreService_Update__With_Out_Of_Sync_New_Node(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(WithExpireDuration(40*time.Second)),
+	)
+
+	expireTimer := &TimerMock{}
+	s.expireTimer = expireTimer
+
+	var expireDuration time.Duration
+	expireTimer.ResetFunc = func(d time.Duration) {
+		expireDuration = d
+	}
+
+	s.init(context.Background())
+
+	assert.Equal(t, 0, len(expireTimer.ResetCalls()))
+
+	//========================================================
+	respChan := make(chan State, 1)
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"remote-addr-1": {
+				Seq:     1,
+				NodeID:  uuid.MustParse("aa42c5b8-2a2c-4416-87d5-54e1e532fd39"),
+				Version: 2,
+			},
+		},
+		respChan: respChan,
+	}
+	s.getNow = func() time.Time { return mustParse("2021-06-05T10:20:00Z") }
+	s.run(context.Background())
+	drainUpdateResponseChan(respChan)
+
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"remote-addr-2": {
+				Seq:       1,
+				NodeID:    uuid.MustParse("66c8bd3e-3750-436c-a54a-a8e9a353f2bd"),
+				Version:   2,
+				OutOfSync: true,
+			},
+		},
+		respChan: respChan,
+	}
+	s.getNow = func() time.Time { return mustParse("2021-06-05T10:20:42Z") }
+	s.run(context.Background())
+	drainUpdateResponseChan(respChan)
+
+	assert.Equal(t, 1, len(expireTimer.ResetCalls()))
+	assert.Equal(t, 40*time.Second, expireDuration)
+}
+
+func TestCoreService_Update__With_Out_Of_Sync__First_Update(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(WithExpireDuration(40*time.Second)),
+	)
+
+	expireTimer := &TimerMock{}
+	s.expireTimer = expireTimer
+
+	var expireDuration time.Duration
+	expireTimer.ResetFunc = func(d time.Duration) {
+		expireDuration = d
+	}
+
+	s.init(context.Background())
+
+	assert.Equal(t, 0, len(expireTimer.ResetCalls()))
+
+	//========================================================
+	respChan := make(chan State, 1)
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"remote-addr-1": {
+				Seq:       1,
+				NodeID:    uuid.MustParse("aa42c5b8-2a2c-4416-87d5-54e1e532fd39"),
+				Version:   2,
+				OutOfSync: true,
+			},
+		},
+		respChan: respChan,
+	}
+	s.getNow = func() time.Time { return mustParse("2021-06-05T10:20:00Z") }
+	s.run(context.Background())
+	drainUpdateResponseChan(respChan)
+
+	assert.Equal(t, 0, len(expireTimer.ResetCalls()))
+
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"remote-addr-1": {
+				Seq:     1,
+				NodeID:  uuid.MustParse("aa42c5b8-2a2c-4416-87d5-54e1e532fd39"),
+				Version: 2,
+			},
+			"remote-addr-2": {
+				Seq:     1,
+				NodeID:  uuid.MustParse("66c8bd3e-3750-436c-a54a-a8e9a353f2bd"),
+				Version: 2,
+			},
+		},
+		respChan: respChan,
+	}
+	s.getNow = func() time.Time { return mustParse("2021-06-05T10:20:22Z") }
+	s.run(context.Background())
+	drainUpdateResponseChan(respChan)
+
+	assert.Equal(t, 1, len(expireTimer.ResetCalls()))
 	assert.Equal(t, 40*time.Second, expireDuration)
 }
 
@@ -843,4 +1017,52 @@ func TestCoreService_Finish__While_Still_The_Leader__Start_Again(t *testing.T) {
 	finishCh <- struct{}{}
 	s.run(context.Background())
 	assert.Equal(t, 2, len(methods.StartCalls()))
+}
+
+func TestCoreService__Sync_Timer_Expire__Remote_Out_Of_Sync__Start_Runner(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+		),
+	)
+
+	syncTimer := &TimerMock{}
+	s.syncTimer = syncTimer
+
+	syncTimer.ResetFunc = func(d time.Duration) {}
+	syncTimer.ResetAfterChanFunc = func(d time.Duration) {}
+
+	timerCh := make(chan time.Time, 1)
+	timerCh <- time.Now()
+	syncTimer.ChanFunc = func() <-chan time.Time {
+		return timerCh
+	}
+
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		return state.putEntry("remote-addr-1", Entry{
+			Seq:     1,
+			NodeID:  uuid.MustParse("435dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version: 1,
+		}), nil
+	}
+
+	s.init(context.Background())
+
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		return state.putEntry("remote-addr-1", Entry{
+			Seq:       1,
+			NodeID:    uuid.MustParse("435dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version:   1,
+			OutOfSync: true,
+		}), nil
+	}
+
+	s.run(context.Background())
+
+	assert.Equal(t, 2, len(methods.UpdateRemoteCalls()))
+	assert.Equal(t, 1, len(methods.StartCalls()))
 }

@@ -76,6 +76,27 @@ func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options se
 	}
 }
 
+func (s *coreService) checkAndCallResetExpireTimer(now time.Time, newState State) {
+	minAddr := ""
+	minUpdate := now.AddDate(100, 0, 0)
+	for addr, t := range s.lastUpdate {
+		outOfSync := false
+		entry, ok := newState[addr]
+		if ok {
+			outOfSync = entry.OutOfSync
+		}
+
+		if !outOfSync && t.Add(s.options.expireDuration).After(now) && minUpdate.After(t) {
+			minUpdate = t
+			minAddr = addr
+		}
+	}
+
+	if minAddr != "" {
+		s.expireTimer.Reset(minUpdate.Add(s.options.expireDuration).Sub(now))
+	}
+}
+
 func (s *coreService) updateWithState(inputState State) {
 	now := s.getNow()
 
@@ -98,19 +119,7 @@ func (s *coreService) updateWithState(inputState State) {
 		}
 	}
 
-	minAddr := ""
-	minUpdate := now.AddDate(100, 0, 0)
-	for addr, t := range s.lastUpdate {
-		if !t.Add(s.options.expireDuration).Before(now) && minUpdate.After(t) {
-			minUpdate = t
-			minAddr = addr
-		}
-	}
-
-	if minAddr != "" {
-		s.expireTimer.Reset(minUpdate.Add(s.options.expireDuration).Sub(now))
-	}
-
+	s.checkAndCallResetExpireTimer(now, newState)
 	s.state = newState
 }
 
@@ -142,7 +151,8 @@ func (s *coreService) startLeader(ctx context.Context) {
 }
 
 func (s *coreService) computeAndStartLeader(ctx context.Context) {
-	leaderID, leaderAddr := s.state.computeLeader(s.selfAddr, s.getNow().Add(-s.options.expireDuration), s.lastUpdate)
+	leaderID, leaderAddr := s.state.computeLeader(
+		s.selfAddr, s.getNow().Add(-s.options.expireDuration), s.lastUpdate)
 
 	if s.leaderNodeID == s.selfNodeID && leaderID != s.selfNodeID {
 		s.cancel()
@@ -208,7 +218,7 @@ func (s *coreService) run(ctx context.Context) {
 		remoteAddr := s.options.remoteAddresses[s.nextAddrIndex]
 		s.nextAddrIndex += (s.nextAddrIndex + 1) % len(s.options.remoteAddresses)
 		s.callUpdateRemote(ctx, remoteAddr)
-		// TODO compute and start leader
+		s.computeAndStartLeader(ctx)
 
 	case req := <-s.fetchLeaderChan:
 		if req.lastLeader != s.leaderAddr {
