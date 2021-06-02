@@ -735,7 +735,7 @@ func drainLeaderChan(ch <-chan string) string {
 	}
 }
 
-func TestCoreService_WatchLeader_Second_Time_After_Leader_Change(t *testing.T) {
+func TestCoreService_WatchLeader_Second_Times_After_Leader_Change(t *testing.T) {
 	t.Parallel()
 
 	methods := newInterfaceMock()
@@ -745,10 +745,6 @@ func TestCoreService_WatchLeader_Second_Time_After_Leader_Change(t *testing.T) {
 			AddRemoteAddress("remote-addr-1"),
 		),
 	)
-
-	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
-		return state, nil
-	}
 
 	var startCtx context.Context
 	methods.StartFunc = func(ctx context.Context, finish chan<- struct{}) {
@@ -800,4 +796,51 @@ func TestCoreService_WatchLeader_Second_Time_After_Leader_Change(t *testing.T) {
 	assert.Equal(t, 1, len(leaderCh))
 	assert.Equal(t, "remote-addr-1", drainLeaderChan(leaderCh))
 	assert.Equal(t, 0, len(s.leaderWaitList))
+}
+
+func TestCoreService_Update_Empty__Only_Start_Once(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+		),
+	)
+
+	s.init(context.Background())
+
+	respCh := make(chan State, 1)
+	s.updateChan <- updateRequest{
+		state:    map[string]Entry{},
+		respChan: respCh,
+	}
+	s.run(context.Background())
+	drainUpdateResponseChan(respCh)
+
+	assert.Equal(t, 1, len(methods.StartCalls()))
+}
+
+func TestCoreService_Finish__While_Still_The_Leader__Start_Again(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+		),
+	)
+	var finishCh chan<- struct{}
+	methods.StartFunc = func(ctx context.Context, finish chan<- struct{}) {
+		finishCh = finish
+	}
+
+	s.init(context.Background())
+	assert.Equal(t, 1, len(methods.StartCalls()))
+
+	finishCh <- struct{}{}
+	s.run(context.Background())
+	assert.Equal(t, 2, len(methods.StartCalls()))
 }

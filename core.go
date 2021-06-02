@@ -37,7 +37,8 @@ type coreService struct {
 	leaderNodeID uuid.UUID
 	leaderAddr   string
 
-	leaderWaitList []chan<- string
+	leaderWaitList  []chan<- string
+	runnerIsRunning bool
 }
 
 type fetchLeaderRequest struct {
@@ -79,6 +80,7 @@ func (s *coreService) updateWithState(inputState State) {
 	now := s.getNow()
 
 	// TODO expire duration timer channel
+	// TODO context done
 
 	newState := combineStates(s.state, inputState)
 	for newAddr, newEntry := range newState {
@@ -130,6 +132,15 @@ func (s *coreService) initAndCall(ctx context.Context, addr string) {
 	s.callUpdateRemote(ctx, addr)
 }
 
+func (s *coreService) startLeader(ctx context.Context) {
+	if !s.runnerIsRunning && s.leaderNodeID == s.selfNodeID {
+		startCtx, cancel := context.WithCancel(ctx)
+		s.cancel = cancel
+		s.methods.Start(startCtx, s.finishChan)
+		s.runnerIsRunning = true
+	}
+}
+
 func (s *coreService) computeAndStartLeader(ctx context.Context) {
 	leaderID, leaderAddr := s.state.computeLeader(s.selfAddr, s.getNow().Add(-s.options.expireDuration), s.lastUpdate)
 
@@ -148,11 +159,7 @@ func (s *coreService) computeAndStartLeader(ctx context.Context) {
 	s.leaderNodeID = leaderID
 	s.leaderAddr = leaderAddr
 
-	if leaderID == s.selfNodeID {
-		startCtx, cancel := context.WithCancel(ctx)
-		s.cancel = cancel
-		s.methods.Start(startCtx, s.finishChan)
-	}
+	s.startLeader(ctx)
 }
 
 func (s *coreService) init(ctx context.Context) {
@@ -209,6 +216,10 @@ func (s *coreService) run(ctx context.Context) {
 			return
 		}
 		s.leaderWaitList = append(s.leaderWaitList, req.respChan)
+
+	case <-s.finishChan:
+		s.runnerIsRunning = false
+		s.startLeader(ctx)
 	}
 }
 
