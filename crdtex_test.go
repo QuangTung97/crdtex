@@ -492,12 +492,13 @@ func TestUUIDLess(t *testing.T) {
 
 func TestComputeLeader(t *testing.T) {
 	table := []struct {
-		name       string
-		selfAddr   string
-		minTime    time.Time
-		lastUpdate map[string]time.Time
-		state      State
-		expectedID uuid.UUID
+		name         string
+		selfAddr     string
+		minTime      time.Time
+		lastUpdate   map[string]time.Time
+		state        State
+		expectedID   uuid.UUID
+		expectedAddr string
 	}{
 		{
 			name:     "is-self-addr",
@@ -507,8 +508,9 @@ func TestComputeLeader(t *testing.T) {
 					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
 				},
 			},
-			minTime:    mustParse("2021-06-05T10:20:00Z"),
-			expectedID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+			minTime:      mustParse("2021-06-05T10:20:00Z"),
+			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedAddr: "address-1",
 		},
 		{
 			name:     "existing-node",
@@ -525,7 +527,8 @@ func TestComputeLeader(t *testing.T) {
 			lastUpdate: map[string]time.Time{
 				"address-2": mustParse("2021-06-05T10:20:01Z"),
 			},
-			expectedID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedAddr: "address-2",
 		},
 		{
 			name:     "existing-node-out-of-sync",
@@ -543,7 +546,8 @@ func TestComputeLeader(t *testing.T) {
 			lastUpdate: map[string]time.Time{
 				"address-2": mustParse("2021-06-05T10:20:01Z"),
 			},
-			expectedID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedAddr: "address-1",
 		},
 		{
 			name:     "existing-nodes-no-last-update",
@@ -559,9 +563,10 @@ func TestComputeLeader(t *testing.T) {
 					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
 				},
 			},
-			minTime:    mustParse("2021-06-05T10:20:00Z"),
-			lastUpdate: map[string]time.Time{},
-			expectedID: uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
+			minTime:      mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate:   map[string]time.Time{},
+			expectedID:   uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedAddr: "address-1",
 		},
 		{
 			name:     "existing-nodes-with-last-update-greater",
@@ -581,7 +586,8 @@ func TestComputeLeader(t *testing.T) {
 			lastUpdate: map[string]time.Time{
 				"address-3": mustParse("2021-06-05T10:20:01Z"),
 			},
-			expectedID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedAddr: "address-3",
 		},
 		{
 			name:     "existing-nodes-with-last-update-equals-min",
@@ -602,7 +608,8 @@ func TestComputeLeader(t *testing.T) {
 				"address-3": mustParse("2021-06-05T10:20:00Z"),
 				"address-2": mustParse("2021-06-05T10:20:01Z"),
 			},
-			expectedID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedID:   uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedAddr: "address-2",
 		},
 	}
 
@@ -611,8 +618,9 @@ func TestComputeLeader(t *testing.T) {
 		t.Run(e.name, func(t *testing.T) {
 			t.Parallel()
 
-			id := e.state.computeLeader(e.selfAddr, e.minTime, e.lastUpdate)
+			id, addr := e.state.computeLeader(e.selfAddr, e.minTime, e.lastUpdate)
 			assert.Equal(t, e.expectedID, id)
+			assert.Equal(t, e.expectedAddr, addr)
 		})
 	}
 }

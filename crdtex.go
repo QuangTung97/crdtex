@@ -110,25 +110,33 @@ func (s State) putEntry(addr string, entry Entry) State {
 	return result
 }
 
-type sortUUID []uuid.UUID
+type searchEntry struct {
+	id   uuid.UUID
+	addr string
+}
 
-var _ sort.Interface = sortUUID{}
+type sortSearchEntry []searchEntry
 
-func (s sortUUID) Len() int {
+var _ sort.Interface = sortSearchEntry{}
+
+func (s sortSearchEntry) Len() int {
 	return len(s)
 }
 
-func (s sortUUID) Less(i, j int) bool {
-	return uuidLess(s[i], s[j])
+func (s sortSearchEntry) Less(i, j int) bool {
+	return uuidLess(s[i].id, s[j].id)
 }
 
-func (s sortUUID) Swap(i, j int) {
+func (s sortSearchEntry) Swap(i, j int) {
 	s[j], s[i] = s[i], s[j]
 }
 
-func (s State) computeLeader(selfAddr string, minTime time.Time, lastUpdate map[string]time.Time) uuid.UUID {
-	var idList []uuid.UUID
-	idList = append(idList, s[selfAddr].NodeID)
+func (s State) computeLeader(selfAddr string, minTime time.Time, lastUpdate map[string]time.Time) (uuid.UUID, string) {
+	var entries []searchEntry
+	entries = append(entries, searchEntry{
+		id:   s[selfAddr].NodeID,
+		addr: selfAddr,
+	})
 
 	for addr, e := range s {
 		if addr == selfAddr {
@@ -146,11 +154,14 @@ func (s State) computeLeader(selfAddr string, minTime time.Time, lastUpdate map[
 		// now - 30 >= t => false
 		// t > now - 30 => true
 		if lastTime.After(minTime) {
-			idList = append(idList, e.NodeID)
+			entries = append(entries, searchEntry{
+				id:   e.NodeID,
+				addr: addr,
+			})
 		}
 	}
-	sort.Sort(sortUUID(idList))
-	return idList[0]
+	sort.Sort(sortSearchEntry(entries))
+	return entries[0].id, entries[0].addr
 }
 
 func uuidLess(a, b uuid.UUID) bool {

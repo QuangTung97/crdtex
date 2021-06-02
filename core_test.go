@@ -623,7 +623,7 @@ func TestCoreService_Init__Only_Node__Start_Runner(t *testing.T) {
 	assert.NotEqual(t, context.Background(), startCtx)
 }
 
-func TestCoreService_Init__Have_Existing_Node_With_Smaller_ID__Not_Start_Runner(t *testing.T) {
+func TestCoreService_Init__Have_Existing_Node_With_Bigger_ID__Start_Runner(t *testing.T) {
 	t.Parallel()
 
 	methods := newInterfaceMock()
@@ -645,4 +645,28 @@ func TestCoreService_Init__Have_Existing_Node_With_Smaller_ID__Not_Start_Runner(
 	s.init(context.Background())
 
 	assert.Equal(t, 1, len(methods.StartCalls()))
+}
+
+func TestCoreService_Init__Have_Existing_Node_With_Smaller_ID__Not_Start_Runner(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+		),
+	)
+
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		return state.putEntry("remote-addr-1", Entry{
+			Seq:     1,
+			NodeID:  uuid.MustParse("493cb116-6b95-4d8e-893f-86106185b638"),
+			Version: 1,
+		}), nil
+	}
+
+	s.init(context.Background())
+
+	assert.Equal(t, 0, len(methods.StartCalls()))
 }

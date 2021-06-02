@@ -32,6 +32,8 @@ type coreService struct {
 	stateVersion  uint64
 	lastUpdate    map[string]time.Time
 	nextAddrIndex int
+
+	leaderAddr string
 }
 
 func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options serviceOptions) *coreService {
@@ -113,6 +115,21 @@ func (s *coreService) initAndCall(ctx context.Context, addr string) {
 	s.callUpdateRemote(ctx, addr)
 }
 
+func (s *coreService) updateLeaderAddress(addr string) {
+	s.leaderAddr = addr
+}
+
+func (s *coreService) computeAndStartLeader(ctx context.Context) {
+	leaderID, leaderAddr := s.state.computeLeader(s.selfAddr, s.getNow().Add(-s.options.expireDuration), s.lastUpdate)
+	s.updateLeaderAddress(leaderAddr)
+
+	if leaderID == s.selfNodeID {
+		startCtx, cancel := context.WithCancel(ctx)
+		s.cancel = cancel
+		s.methods.Start(startCtx, s.finishChan)
+	}
+}
+
 func (s *coreService) init(ctx context.Context) {
 	s.syncTimer.Reset(s.options.syncDuration)
 
@@ -130,13 +147,7 @@ func (s *coreService) init(ctx context.Context) {
 	for _, remoteAddr := range s.options.remoteAddresses {
 		s.initAndCall(ctx, remoteAddr)
 	}
-
-	leaderID := s.state.computeLeader(s.selfAddr, s.getNow().Add(-s.options.expireDuration), s.lastUpdate)
-	if leaderID == s.selfNodeID {
-		startCtx, cancel := context.WithCancel(ctx)
-		s.cancel = cancel
-		s.methods.Start(startCtx, s.finishChan)
-	}
+	s.computeAndStartLeader(ctx)
 }
 
 func (s *coreService) run(ctx context.Context) {
