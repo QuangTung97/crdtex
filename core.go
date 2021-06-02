@@ -76,14 +76,23 @@ func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options se
 	}
 }
 
-func (s *coreService) checkAndCallResetExpireTimer(now time.Time, newState State) {
+func (s *coreService) checkAndCallResetExpireTimer(now time.Time, newState State) State {
 	minAddr := ""
 	minUpdate := now.AddDate(100, 0, 0)
 	for addr, t := range s.lastUpdate {
-		outOfSync := false
 		entry, ok := newState[addr]
-		if ok {
-			outOfSync = entry.OutOfSync
+		if !ok {
+			panic("must be true")
+		}
+		outOfSync := entry.OutOfSync
+
+		if outOfSync {
+			continue
+		}
+		if !t.Add(s.options.expireDuration).After(now) {
+			entry.OutOfSync = true
+			newState = newState.putEntry(addr, entry)
+			continue
 		}
 
 		if !outOfSync && t.Add(s.options.expireDuration).After(now) && minUpdate.After(t) {
@@ -95,6 +104,7 @@ func (s *coreService) checkAndCallResetExpireTimer(now time.Time, newState State
 	if minAddr != "" {
 		s.expireTimer.Reset(minUpdate.Add(s.options.expireDuration).Sub(now))
 	}
+	return newState
 }
 
 func (s *coreService) updateWithState(inputState State) {
@@ -119,7 +129,7 @@ func (s *coreService) updateWithState(inputState State) {
 		}
 	}
 
-	s.checkAndCallResetExpireTimer(now, newState)
+	newState = s.checkAndCallResetExpireTimer(now, newState)
 	s.state = newState
 }
 
@@ -218,6 +228,11 @@ func (s *coreService) run(ctx context.Context) {
 		remoteAddr := s.options.remoteAddresses[s.nextAddrIndex]
 		s.nextAddrIndex += (s.nextAddrIndex + 1) % len(s.options.remoteAddresses)
 		s.callUpdateRemote(ctx, remoteAddr)
+		s.computeAndStartLeader(ctx)
+
+	case <-s.expireTimer.Chan():
+		now := s.getNow()
+		s.state = s.checkAndCallResetExpireTimer(now, s.state)
 		s.computeAndStartLeader(ctx)
 
 	case req := <-s.fetchLeaderChan:
