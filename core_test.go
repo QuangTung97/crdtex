@@ -1130,3 +1130,47 @@ func TestCoreService__Expire_Timer_Expired__And_Start_Runner(t *testing.T) {
 
 	assert.Equal(t, 1, len(methods.StartCalls()))
 }
+
+func TestCoreService__Context_Cancelled__Update_ItSelf_To_Out_Of_Sync__And_Call_Update_Remote(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+			AddRemoteAddress("remote-addr-2"),
+		),
+	)
+
+	s.init(context.Background())
+
+	assert.Equal(t, 2, len(methods.UpdateRemoteCalls()))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var updateAddrs []string
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		assert.Equal(t, nil, ctx.Err())
+		updateAddrs = append(updateAddrs, addr)
+		return state, nil
+	}
+
+	s.run(ctx)
+
+	assert.Equal(t, State{
+		"self-addr": {
+			Seq:       1,
+			NodeID:    uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version:   1,
+			OutOfSync: true,
+		},
+	}, s.getState())
+
+	assert.Equal(t, 4, len(methods.UpdateRemoteCalls()))
+	assert.Equal(t, []string{
+		"remote-addr-1",
+		"remote-addr-2",
+	}, updateAddrs)
+}

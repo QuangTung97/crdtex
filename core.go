@@ -110,9 +110,6 @@ func (s *coreService) checkAndCallResetExpireTimer(now time.Time, newState State
 func (s *coreService) updateWithState(inputState State) {
 	now := s.getNow()
 
-	// TODO expire duration timer channel
-	// TODO context done
-
 	newState := combineStates(s.state, inputState)
 	for newAddr, newEntry := range newState {
 		if newAddr == s.selfAddr {
@@ -231,6 +228,7 @@ func (s *coreService) run(ctx context.Context) {
 		s.computeAndStartLeader(ctx)
 
 	case <-s.expireTimer.Chan():
+		// TODO Reset to infinity
 		now := s.getNow()
 		s.state = s.checkAndCallResetExpireTimer(now, s.state)
 		s.computeAndStartLeader(ctx)
@@ -245,6 +243,17 @@ func (s *coreService) run(ctx context.Context) {
 	case <-s.finishChan:
 		s.runnerIsRunning = false
 		s.startLeader(ctx)
+
+	case <-ctx.Done():
+		s.state = s.state.putEntry(s.selfAddr, Entry{
+			Seq:       s.stateSeq,
+			NodeID:    s.selfNodeID,
+			Version:   s.stateVersion,
+			OutOfSync: true,
+		})
+		for _, remoteAddr := range s.options.remoteAddresses {
+			s.callUpdateRemote(context.Background(), remoteAddr)
+		}
 	}
 }
 
