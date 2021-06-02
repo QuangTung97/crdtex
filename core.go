@@ -84,18 +84,18 @@ func (s *coreService) checkAndCallResetExpireTimer(now time.Time, newState State
 		if !ok {
 			panic("must be true")
 		}
-		outOfSync := entry.OutOfSync
 
-		if outOfSync {
+		if entry.OutOfSync {
 			continue
 		}
+
 		if !t.Add(s.options.expireDuration).After(now) {
 			entry.OutOfSync = true
 			newState = newState.putEntry(addr, entry)
 			continue
 		}
 
-		if !outOfSync && t.Add(s.options.expireDuration).After(now) && minUpdate.After(t) {
+		if minUpdate.After(t) {
 			minUpdate = t
 			minAddr = addr
 		}
