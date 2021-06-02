@@ -9,9 +9,10 @@ import (
 
 // Entry ...
 type Entry struct {
-	Seq     uint64
-	NodeID  uuid.UUID
-	Version uint64
+	Seq       uint64
+	NodeID    uuid.UUID
+	Version   uint64
+	OutOfSync bool
 }
 
 // State ...
@@ -33,6 +34,16 @@ type Timer interface {
 	Chan() <-chan time.Time
 }
 
+func boolLess(a, b bool) bool {
+	if a == b {
+		return false
+	}
+	if b == true {
+		return true
+	}
+	return false
+}
+
 func entryLess(a, b Entry) bool {
 	if a.Seq < b.Seq {
 		return true
@@ -42,7 +53,12 @@ func entryLess(a, b Entry) bool {
 			return true
 		}
 		if a.NodeID == b.NodeID {
-			return a.Version < b.Version
+			if a.Version < b.Version {
+				return true
+			}
+			if a.Version == b.Version {
+				return boolLess(a.OutOfSync, b.OutOfSync)
+			}
 		}
 	}
 	return false
@@ -131,7 +147,7 @@ func (s State) computeLeader(selfAddr string, minTime time.Time, lastUpdate map[
 		}
 	}
 	sort.Sort(sortUUID(idList))
-	return idList[len(idList) - 1]
+	return idList[len(idList)-1]
 }
 
 func uuidLess(a, b uuid.UUID) bool {

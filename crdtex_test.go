@@ -245,6 +245,87 @@ func TestCombineStates(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "a-b-same-key-same-seq-same-id-same-version-a-out-of-sync-true",
+			a: map[string]Entry{
+				"address1": {
+					Seq:       2,
+					NodeID:    uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version:   12,
+					OutOfSync: true,
+				},
+			},
+			b: map[string]Entry{
+				"address1": {
+					Seq:       2,
+					NodeID:    uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version:   12,
+					OutOfSync: false,
+				},
+			},
+			expected: map[string]Entry{
+				"address1": {
+					Seq:       2,
+					NodeID:    uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version:   12,
+					OutOfSync: true,
+				},
+			},
+		},
+		{
+			name: "a-b-same-key-same-seq-same-id-same-version-b-out-of-sync-true",
+			a: map[string]Entry{
+				"address1": {
+					Seq:       2,
+					NodeID:    uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version:   12,
+					OutOfSync: false,
+				},
+			},
+			b: map[string]Entry{
+				"address1": {
+					Seq:       2,
+					NodeID:    uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version:   12,
+					OutOfSync: true,
+				},
+			},
+			expected: map[string]Entry{
+				"address1": {
+					Seq:       2,
+					NodeID:    uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version:   12,
+					OutOfSync: true,
+				},
+			},
+		},
+		{
+			name: "a-b-same-key-same-seq-same-id-same-version-out-of-sync-both-true",
+			a: map[string]Entry{
+				"address1": {
+					Seq:       2,
+					NodeID:    uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version:   12,
+					OutOfSync: true,
+				},
+			},
+			b: map[string]Entry{
+				"address1": {
+					Seq:       2,
+					NodeID:    uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version:   12,
+					OutOfSync: true,
+				},
+			},
+			expected: map[string]Entry{
+				"address1": {
+					Seq:       2,
+					NodeID:    uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
+					Version:   12,
+					OutOfSync: true,
+				},
+			},
+		},
 	}
 	for _, tc := range table {
 		e := tc
@@ -411,12 +492,12 @@ func TestUUIDLess(t *testing.T) {
 
 func TestComputeLeader(t *testing.T) {
 	table := []struct {
-		name         string
-		selfAddr     string
-		minTime      time.Time
-		lastUpdate   map[string]time.Time
-		state        State
-		expectedID   uuid.UUID
+		name       string
+		selfAddr   string
+		minTime    time.Time
+		lastUpdate map[string]time.Time
+		state      State
+		expectedID uuid.UUID
 	}{
 		{
 			name:     "is-self-addr",
@@ -426,8 +507,8 @@ func TestComputeLeader(t *testing.T) {
 					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
 				},
 			},
-			minTime:      mustParse("2021-06-05T10:20:00Z"),
-			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+			minTime:    mustParse("2021-06-05T10:20:00Z"),
+			expectedID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
 		},
 		{
 			name:     "existing-node",
@@ -444,7 +525,7 @@ func TestComputeLeader(t *testing.T) {
 			lastUpdate: map[string]time.Time{
 				"address-2": mustParse("2021-06-05T10:20:01Z"),
 			},
-			expectedID:   uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+			expectedID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
 		},
 	}
 
