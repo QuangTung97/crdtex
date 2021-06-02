@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const hundredYears = 100 * 365 * 24 * time.Hour
+
 type updateRequest struct {
 	state    State
 	respChan chan<- State
@@ -228,7 +230,7 @@ func (s *coreService) run(ctx context.Context) {
 		s.computeAndStartLeader(ctx)
 
 	case <-s.expireTimer.Chan():
-		// TODO Reset to infinity
+		s.expireTimer.ResetAfterChan(hundredYears)
 		now := s.getNow()
 		s.state = s.checkAndCallResetExpireTimer(now, s.state)
 		s.computeAndStartLeader(ctx)

@@ -1089,7 +1089,10 @@ func TestCoreService__Expire_Timer_Expired__And_Start_Runner(t *testing.T) {
 	s.expireTimer = expireTimer
 
 	expireTimer.ResetFunc = func(d time.Duration) {}
-	expireTimer.ResetAfterChanFunc = func(d time.Duration) {}
+	var resetAfterChanDuration time.Duration
+	expireTimer.ResetAfterChanFunc = func(d time.Duration) {
+		resetAfterChanDuration = d
+	}
 
 	timerCh := make(chan time.Time, 1)
 	timerCh <- time.Now()
@@ -1128,6 +1131,8 @@ func TestCoreService__Expire_Timer_Expired__And_Start_Runner(t *testing.T) {
 		},
 	}, s.getState())
 
+	assert.Equal(t, 1, len(expireTimer.ResetAfterChanCalls()))
+	assert.Equal(t, 100*365*24*time.Hour, resetAfterChanDuration)
 	assert.Equal(t, 1, len(methods.StartCalls()))
 }
 
