@@ -23,7 +23,7 @@ func TestCoreService_Init__InitConn_And_UpdateRemote(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 			WithSyncDuration(10*time.Second),
@@ -83,7 +83,7 @@ func TestCoreService_Init__InitConn_And_UpdateRemote_ReturnNew(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 			WithExpireDuration(30*time.Second),
@@ -149,7 +149,7 @@ func TestCoreService__Without_Remote_Addr__Update(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id, computeOptions())
+	s := newCoreService(methods, "self-addr", 0, id, computeOptions())
 
 	s.init(context.Background())
 
@@ -190,7 +190,7 @@ func TestCoreService_Update__Check_Expire_Timer(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(WithExpireDuration(40*time.Second)),
 	)
 
@@ -279,7 +279,7 @@ func TestCoreService_Init__Not_Reset_Expire(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 			WithSyncDuration(10*time.Second),
@@ -304,7 +304,7 @@ func TestCoreService_Update__With_Self_Addr__Not_Reset_Expire(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(WithExpireDuration(40*time.Second)),
 	)
 
@@ -344,7 +344,7 @@ func TestCoreService_Update__With_Expired_Addr(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(WithExpireDuration(40*time.Second)),
 	)
 
@@ -400,7 +400,7 @@ func TestCoreService_Update__With_Nearly_Expired_Addr(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(WithExpireDuration(40*time.Second)),
 	)
 
@@ -456,7 +456,7 @@ func TestCoreService_Update__With_Out_Of_Sync_New_Node(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(WithExpireDuration(40*time.Second)),
 	)
 
@@ -513,7 +513,7 @@ func TestCoreService_Update__With_Out_Of_Sync__First_Update(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(WithExpireDuration(40*time.Second)),
 	)
 
@@ -578,7 +578,7 @@ func TestCoreService_Sync_Call_Single_Remote(t *testing.T) {
 	methods := newInterfaceMock()
 
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 			WithSyncDuration(3*time.Second),
@@ -682,7 +682,7 @@ func TestCoreService_Sync_Call_Two_Remotes(t *testing.T) {
 	methods := newInterfaceMock()
 
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 			AddRemoteAddress("remote-addr-2"),
@@ -786,7 +786,7 @@ func TestCoreService_Init__Only_Node__Start_Runner(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 		),
@@ -808,7 +808,7 @@ func TestCoreService_Init__Have_Existing_Node_With_Bigger_ID__Start_Runner(t *te
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 		),
@@ -832,7 +832,7 @@ func TestCoreService_Init__Have_Existing_Node_With_Smaller_ID__Not_Start_Runner(
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 		),
@@ -856,7 +856,7 @@ func TestCoreService_WatchLeader_First_Time(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 		),
@@ -882,7 +882,7 @@ func TestCoreService_WatchLeader_Second_Time(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 		),
@@ -920,7 +920,7 @@ func TestCoreService_WatchLeader_Second_Times_After_Leader_Change(t *testing.T) 
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 		),
@@ -983,7 +983,7 @@ func TestCoreService_Update_Empty__Only_Start_Once(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 		),
@@ -1007,7 +1007,7 @@ func TestCoreService_Finish__While_Still_The_Leader__Start_Again(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 		),
@@ -1030,7 +1030,7 @@ func TestCoreService__Sync_Timer_Expire__Remote_Out_Of_Sync__Start_Runner(t *tes
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 		),
@@ -1078,7 +1078,7 @@ func TestCoreService__Expire_Timer_Expired__And_Start_Runner(t *testing.T) {
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 			WithExpireDuration(30*time.Second),
@@ -1141,7 +1141,7 @@ func TestCoreService__Context_Cancelled__Update_ItSelf_To_Out_Of_Sync__And_Call_
 
 	methods := newInterfaceMock()
 	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
-	s := newCoreService(methods, "self-addr", id,
+	s := newCoreService(methods, "self-addr", 0, id,
 		computeOptions(
 			AddRemoteAddress("remote-addr-1"),
 			AddRemoteAddress("remote-addr-2"),

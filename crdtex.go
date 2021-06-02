@@ -10,6 +10,7 @@ import (
 // Entry ...
 type Entry struct {
 	Seq       uint64
+	Timestamp uint64
 	NodeID    uuid.UUID
 	Version   uint64
 	OutOfSync bool
@@ -47,12 +48,9 @@ type Runner struct {
 
 // NewRunner creates a Runner
 func NewRunner(methods Interface, selfAddr string, options ...Option) *Runner {
-	selfID, err := uuid.NewUUID()
-	if err != nil {
-		panic(err)
-	}
-
-	core := newCoreService(methods, selfAddr, selfID, computeOptions(options...))
+	selfID := uuid.New()
+	timestamp := time.Now().UnixNano()
+	core := newCoreService(methods, selfAddr, uint64(timestamp), selfID, computeOptions(options...))
 	return &Runner{
 		core: core,
 	}
@@ -108,20 +106,25 @@ func entryLess(a, b Entry) bool {
 	if a.Seq < b.Seq {
 		return true
 	}
-	if a.Seq == b.Seq {
-		if uuidLess(a.NodeID, b.NodeID) {
-			return true
-		}
-		if a.NodeID == b.NodeID {
-			if a.Version < b.Version {
-				return true
-			}
-			if a.Version == b.Version {
-				return boolLess(a.OutOfSync, b.OutOfSync)
-			}
-		}
+	if a.Seq > b.Seq {
+		return false
 	}
-	return false
+
+	if timestampUUIDLess(a.Timestamp, a.NodeID, b.Timestamp, b.NodeID) {
+		return true
+	}
+	if timestampUUIDLess(b.Timestamp, b.NodeID, a.Timestamp, a.NodeID) {
+		return false
+	}
+
+	if a.Version < b.Version {
+		return true
+	}
+	if a.Version > b.Version {
+		return false
+	}
+
+	return boolLess(a.OutOfSync, b.OutOfSync)
 }
 
 func combineStates(a, b State) State {
@@ -171,8 +174,9 @@ func (s State) putEntry(addr string, entry Entry) State {
 }
 
 type searchEntry struct {
-	id   uuid.UUID
-	addr string
+	timestamp uint64
+	id        uuid.UUID
+	addr      string
 }
 
 type sortSearchEntry []searchEntry
@@ -184,7 +188,7 @@ func (s sortSearchEntry) Len() int {
 }
 
 func (s sortSearchEntry) Less(i, j int) bool {
-	return uuidLess(s[i].id, s[j].id)
+	return timestampUUIDLess(s[i].timestamp, s[i].id, s[j].timestamp, s[j].id)
 }
 
 func (s sortSearchEntry) Swap(i, j int) {
@@ -194,8 +198,9 @@ func (s sortSearchEntry) Swap(i, j int) {
 func (s State) computeLeader(selfAddr string, minTime time.Time, lastUpdate map[string]time.Time) (uuid.UUID, string) {
 	var entries []searchEntry
 	entries = append(entries, searchEntry{
-		id:   s[selfAddr].NodeID,
-		addr: selfAddr,
+		timestamp: s[selfAddr].Timestamp,
+		id:        s[selfAddr].NodeID,
+		addr:      selfAddr,
 	})
 
 	for addr, e := range s {
@@ -215,13 +220,24 @@ func (s State) computeLeader(selfAddr string, minTime time.Time, lastUpdate map[
 		// t > now - 30 => true
 		if lastTime.After(minTime) {
 			entries = append(entries, searchEntry{
-				id:   e.NodeID,
-				addr: addr,
+				timestamp: e.Timestamp,
+				id:        e.NodeID,
+				addr:      addr,
 			})
 		}
 	}
 	sort.Sort(sortSearchEntry(entries))
 	return entries[0].id, entries[0].addr
+}
+
+func timestampUUIDLess(ta uint64, a uuid.UUID, tb uint64, b uuid.UUID) bool {
+	if ta < tb {
+		return true
+	}
+	if ta > tb {
+		return false
+	}
+	return uuidLess(a, b)
 }
 
 func uuidLess(a, b uuid.UUID) bool {

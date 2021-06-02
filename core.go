@@ -17,9 +17,10 @@ type updateRequest struct {
 type coreService struct {
 	methods Interface
 
-	selfAddr   string
-	selfNodeID uuid.UUID
-	options    serviceOptions
+	selfAddr          string
+	selfNodeTimestamp uint64
+	selfNodeID        uuid.UUID
+	options           serviceOptions
 
 	getNow      func() time.Time
 	syncTimer   Timer
@@ -53,15 +54,19 @@ type leaderWatcher struct {
 	ch   chan string
 }
 
-func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options serviceOptions) *coreService {
+func newCoreService(
+	methods Interface, addr string, nodeTimestamp uint64,
+	nodeID uuid.UUID, options serviceOptions,
+) *coreService {
 	finishChan := make(chan struct{}, 1)
 	updateChan := make(chan updateRequest, 256)
 	fetchLeaderChan := make(chan fetchLeaderRequest, 128)
 	return &coreService{
 		methods: methods,
 
-		selfAddr:   addr,
-		selfNodeID: nodeID,
+		selfAddr:          addr,
+		selfNodeTimestamp: nodeTimestamp,
+		selfNodeID:        nodeID,
 
 		options: options,
 
@@ -188,9 +193,10 @@ func (s *coreService) init(ctx context.Context) {
 	s.stateVersion = 1
 	newState := map[string]Entry{
 		s.selfAddr: {
-			Seq:     s.stateSeq,
-			NodeID:  s.selfNodeID,
-			Version: s.stateVersion,
+			Seq:       s.stateSeq,
+			Timestamp: s.selfNodeTimestamp,
+			NodeID:    s.selfNodeID,
+			Version:   s.stateVersion,
 		},
 	}
 	s.state = newState
@@ -213,9 +219,10 @@ func (s *coreService) run(ctx context.Context) {
 
 		s.stateVersion++
 		newEntry := Entry{
-			Seq:     s.stateSeq,
-			NodeID:  s.selfNodeID,
-			Version: s.stateVersion,
+			Seq:       s.stateSeq,
+			Timestamp: s.selfNodeTimestamp,
+			NodeID:    s.selfNodeID,
+			Version:   s.stateVersion,
 		}
 		newSeq, updated := s.state.checkUpdated(s.selfAddr, newEntry)
 		if !updated {
@@ -249,6 +256,7 @@ func (s *coreService) run(ctx context.Context) {
 	case <-ctx.Done():
 		s.state = s.state.putEntry(s.selfAddr, Entry{
 			Seq:       s.stateSeq,
+			Timestamp: s.selfNodeTimestamp,
 			NodeID:    s.selfNodeID,
 			Version:   s.stateVersion,
 			OutOfSync: true,
