@@ -71,6 +71,21 @@ func (r *Runner) Run(ctx context.Context) {
 	}
 }
 
+// Update ...
+func (r *Runner) Update(ctx context.Context, state State) State {
+	respChan := make(chan State, 1)
+	r.core.updateChan <- updateRequest{
+		state:    state,
+		respChan: respChan,
+	}
+	select {
+	case result := <-respChan:
+		return result
+	case <-ctx.Done():
+		return nil
+	}
+}
+
 // NewLeaderWatcher creates a watcher
 func (r *Runner) NewLeaderWatcher() *LeaderWatcher {
 	return &LeaderWatcher{
@@ -188,6 +203,7 @@ func (s sortSearchEntry) Len() int {
 }
 
 func (s sortSearchEntry) Less(i, j int) bool {
+	// TODO Test Case
 	return timestampUUIDLess(s[i].timestamp, s[i].id, s[j].timestamp, s[j].id)
 }
 

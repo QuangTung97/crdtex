@@ -231,9 +231,12 @@ func (s *coreService) run(ctx context.Context) {
 		}
 		s.state = s.state.putEntry(s.selfAddr, newEntry)
 
-		remoteAddr := s.options.remoteAddresses[s.nextAddrIndex]
-		s.nextAddrIndex += (s.nextAddrIndex + 1) % len(s.options.remoteAddresses)
-		s.callUpdateRemote(ctx, remoteAddr)
+		// TODO add test
+		if len(s.options.remoteAddresses) > 0 {
+			remoteAddr := s.options.remoteAddresses[s.nextAddrIndex]
+			s.nextAddrIndex += (s.nextAddrIndex + 1) % len(s.options.remoteAddresses)
+			s.callUpdateRemote(ctx, remoteAddr)
+		}
 		s.computeAndStartLeader(ctx)
 
 	case <-s.expireTimer.Chan():
