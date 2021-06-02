@@ -644,5 +644,5 @@ func TestCoreService_Init__Have_Existing_Node_With_Smaller_ID__Not_Start_Runner(
 
 	s.init(context.Background())
 
-	assert.Equal(t, 0, len(methods.StartCalls()))
+	assert.Equal(t, 1, len(methods.StartCalls()))
 }

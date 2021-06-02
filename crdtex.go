@@ -134,6 +134,9 @@ func (s State) computeLeader(selfAddr string, minTime time.Time, lastUpdate map[
 		if addr == selfAddr {
 			continue
 		}
+		if e.OutOfSync {
+			continue
+		}
 		lastTime, ok := lastUpdate[addr]
 		if !ok {
 			continue
@@ -147,7 +150,7 @@ func (s State) computeLeader(selfAddr string, minTime time.Time, lastUpdate map[
 		}
 	}
 	sort.Sort(sortUUID(idList))
-	return idList[len(idList)-1]
+	return idList[0]
 }
 
 func uuidLess(a, b uuid.UUID) bool {

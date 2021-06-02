@@ -515,14 +515,91 @@ func TestComputeLeader(t *testing.T) {
 			selfAddr: "address-1",
 			state: map[string]Entry{
 				"address-1": {
-					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
 				},
 				"address-2": {
-					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
 				},
 			},
 			minTime: mustParse("2021-06-05T10:20:00Z"),
 			lastUpdate: map[string]time.Time{
+				"address-2": mustParse("2021-06-05T10:20:01Z"),
+			},
+			expectedID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+		},
+		{
+			name:     "existing-node-out-of-sync",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+				"address-2": {
+					NodeID:    uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+					OutOfSync: true,
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{
+				"address-2": mustParse("2021-06-05T10:20:01Z"),
+			},
+			expectedID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+		},
+		{
+			name:     "existing-nodes-no-last-update",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					NodeID: uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+				"address-2": {
+					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+				"address-3": {
+					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+			},
+			minTime:    mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{},
+			expectedID: uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
+		},
+		{
+			name:     "existing-nodes-with-last-update-greater",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					NodeID: uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+				"address-2": {
+					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+				"address-3": {
+					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{
+				"address-3": mustParse("2021-06-05T10:20:01Z"),
+			},
+			expectedID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+		},
+		{
+			name:     "existing-nodes-with-last-update-equals-min",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					NodeID: uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+				"address-2": {
+					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+				"address-3": {
+					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{
+				"address-3": mustParse("2021-06-05T10:20:00Z"),
 				"address-2": mustParse("2021-06-05T10:20:01Z"),
 			},
 			expectedID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
