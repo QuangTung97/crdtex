@@ -670,3 +670,134 @@ func TestCoreService_Init__Have_Existing_Node_With_Smaller_ID__Not_Start_Runner(
 
 	assert.Equal(t, 0, len(methods.StartCalls()))
 }
+
+func TestCoreService_WatchLeader_First_Time(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+		),
+	)
+
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		return state, nil
+	}
+
+	s.init(context.Background())
+
+	watcher := s.newLeaderWatcher()
+	leaderCh := watcher.watch("")
+
+	s.run(context.Background())
+
+	leaderAddr := <-leaderCh
+	assert.Equal(t, "self-addr", leaderAddr)
+}
+
+func TestCoreService_WatchLeader_Second_Time(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+		),
+	)
+
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		return state, nil
+	}
+
+	s.init(context.Background())
+
+	watcher := s.newLeaderWatcher()
+
+	leaderCh := watcher.watch("")
+	s.run(context.Background())
+	lastLeader := <-leaderCh
+
+	leaderCh = watcher.watch(lastLeader)
+	s.run(context.Background())
+
+	assert.Equal(t, 0, len(leaderCh))
+}
+
+func drainLeaderChan(ch <-chan string) string {
+	select {
+	case s := <-ch:
+		return s
+	default:
+		return ""
+	}
+}
+
+func TestCoreService_WatchLeader_Second_Time_After_Leader_Change(t *testing.T) {
+	t.Parallel()
+
+	methods := newInterfaceMock()
+	id := uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7")
+	s := newCoreService(methods, "self-addr", id,
+		computeOptions(
+			AddRemoteAddress("remote-addr-1"),
+		),
+	)
+
+	methods.UpdateRemoteFunc = func(ctx context.Context, addr string, state State) (State, error) {
+		return state, nil
+	}
+
+	var startCtx context.Context
+	methods.StartFunc = func(ctx context.Context, finish chan<- struct{}) {
+		startCtx = ctx
+	}
+
+	s.init(context.Background())
+
+	watcher := s.newLeaderWatcher()
+
+	leaderCh := watcher.watch("")
+	s.run(context.Background())
+	lastLeader := <-leaderCh
+
+	leaderCh = watcher.watch(lastLeader)
+	s.run(context.Background())
+	assert.Equal(t, 0, len(leaderCh))
+
+	updateRespCh := make(chan State, 1)
+	s.updateChan <- updateRequest{
+		state: map[string]Entry{
+			"remote-addr-1": {
+				Seq:     1,
+				NodeID:  uuid.MustParse("429993d4-3e77-48f8-b2f8-4e4d679e8645"),
+				Version: 1,
+			},
+		},
+		respChan: updateRespCh,
+	}
+	s.run(context.Background())
+
+	assert.Equal(t, 1, len(updateRespCh))
+	respState := drainUpdateResponseChan(updateRespCh)
+	assert.Equal(t, State{
+		"self-addr": {
+			Seq:     1,
+			NodeID:  uuid.MustParse("535dbd7a-9a65-48b3-8644-0fb58eed98d7"),
+			Version: 1,
+		},
+		"remote-addr-1": {
+			Seq:     1,
+			NodeID:  uuid.MustParse("429993d4-3e77-48f8-b2f8-4e4d679e8645"),
+			Version: 1,
+		},
+	}, respState)
+	assert.Equal(t, 1, len(methods.StartCalls()))
+	assert.Equal(t, context.Canceled, startCtx.Err())
+
+	assert.Equal(t, 1, len(leaderCh))
+	assert.Equal(t, "remote-addr-1", drainLeaderChan(leaderCh))
+	assert.Equal(t, 0, len(s.leaderWaitList))
+}

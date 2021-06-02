@@ -23,9 +23,10 @@ type coreService struct {
 	syncTimer   Timer
 	expireTimer Timer
 
-	finishChan chan struct{}
-	cancel     func()
-	updateChan chan updateRequest
+	finishChan      chan struct{}
+	cancel          func()
+	updateChan      chan updateRequest
+	fetchLeaderChan chan fetchLeaderRequest
 
 	state         State
 	stateSeq      uint64
@@ -33,12 +34,26 @@ type coreService struct {
 	lastUpdate    map[string]time.Time
 	nextAddrIndex int
 
-	leaderAddr string
+	leaderNodeID uuid.UUID
+	leaderAddr   string
+
+	leaderWaitList []chan<- string
+}
+
+type fetchLeaderRequest struct {
+	lastLeader string
+	respChan   chan<- string
+}
+
+type leaderWatcher struct {
+	core *coreService
+	ch   chan string
 }
 
 func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options serviceOptions) *coreService {
 	finishChan := make(chan struct{}, 1)
 	updateChan := make(chan updateRequest, 256)
+	fetchLeaderChan := make(chan fetchLeaderRequest, 128)
 	return &coreService{
 		methods: methods,
 
@@ -51,8 +66,9 @@ func newCoreService(methods Interface, addr string, nodeID uuid.UUID, options se
 		syncTimer:   newTimer(),
 		expireTimer: newTimer(),
 
-		finishChan: finishChan,
-		updateChan: updateChan,
+		finishChan:      finishChan,
+		updateChan:      updateChan,
+		fetchLeaderChan: fetchLeaderChan,
 
 		lastUpdate:    map[string]time.Time{},
 		nextAddrIndex: 0,
@@ -63,7 +79,6 @@ func (s *coreService) updateWithState(inputState State) {
 	now := s.getNow()
 
 	// TODO expire duration timer channel
-	// TODO change leader
 
 	newState := combineStates(s.state, inputState)
 	for newAddr, newEntry := range newState {
@@ -115,13 +130,23 @@ func (s *coreService) initAndCall(ctx context.Context, addr string) {
 	s.callUpdateRemote(ctx, addr)
 }
 
-func (s *coreService) updateLeaderAddress(addr string) {
-	s.leaderAddr = addr
-}
-
 func (s *coreService) computeAndStartLeader(ctx context.Context) {
 	leaderID, leaderAddr := s.state.computeLeader(s.selfAddr, s.getNow().Add(-s.options.expireDuration), s.lastUpdate)
-	s.updateLeaderAddress(leaderAddr)
+
+	if s.leaderNodeID == s.selfNodeID && leaderID != s.selfNodeID {
+		s.cancel()
+	}
+
+	if s.leaderAddr != leaderAddr {
+		for i, waiter := range s.leaderWaitList {
+			waiter <- leaderAddr
+			s.leaderWaitList[i] = nil
+		}
+		s.leaderWaitList = s.leaderWaitList[:0]
+	}
+
+	s.leaderNodeID = leaderID
+	s.leaderAddr = leaderAddr
 
 	if leaderID == s.selfNodeID {
 		startCtx, cancel := context.WithCancel(ctx)
@@ -154,6 +179,7 @@ func (s *coreService) run(ctx context.Context) {
 	select {
 	case req := <-s.updateChan:
 		s.updateWithState(req.state)
+		s.computeAndStartLeader(ctx)
 		req.respChan <- s.state
 
 	case <-s.syncTimer.Chan():
@@ -175,9 +201,37 @@ func (s *coreService) run(ctx context.Context) {
 		remoteAddr := s.options.remoteAddresses[s.nextAddrIndex]
 		s.nextAddrIndex += (s.nextAddrIndex + 1) % len(s.options.remoteAddresses)
 		s.callUpdateRemote(ctx, remoteAddr)
+		// TODO compute and start leader
+
+	case req := <-s.fetchLeaderChan:
+		if req.lastLeader != s.leaderAddr {
+			req.respChan <- s.leaderAddr
+			return
+		}
+		s.leaderWaitList = append(s.leaderWaitList, req.respChan)
 	}
 }
 
 func (s *coreService) getState() State {
 	return s.state
+}
+
+func (s *coreService) fetchLeader(req fetchLeaderRequest) {
+	s.fetchLeaderChan <- req
+}
+
+func (s *coreService) newLeaderWatcher() *leaderWatcher {
+	ch := make(chan string, 1)
+	return &leaderWatcher{
+		core: s,
+		ch:   ch,
+	}
+}
+
+func (w *leaderWatcher) watch(lastLeader string) <-chan string {
+	w.core.fetchLeader(fetchLeaderRequest{
+		lastLeader: lastLeader,
+		respChan:   w.ch,
+	})
+	return w.ch
 }
