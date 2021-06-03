@@ -2,12 +2,22 @@ package crdtex
 
 import (
 	"context"
-	"fmt"
-	"github.com/google/uuid"
 	"time"
 )
 
 const hundredYears = 100 * 365 * 24 * time.Hour
+
+type updateResult struct {
+	state State
+	err   error
+}
+
+//go:generate moq -out core_mocks_test.go . callbacks
+
+type callbacks interface {
+	start(ctx context.Context, finish chan<- struct{})
+	updateRemote(ctx context.Context, addr string, state State, resultChan chan<- updateResult)
+}
 
 type updateRequest struct {
 	state    State
@@ -15,30 +25,31 @@ type updateRequest struct {
 }
 
 type coreService struct {
-	methods Interface
-
-	selfAddr          string
-	selfNodeTimestamp uint64
-	selfNodeID        uuid.UUID
-	options           serviceOptions
+	methods callbacks
+	self    nodeID
+	options serviceOptions
 
 	getNow      func() time.Time
 	syncTimer   Timer
 	expireTimer Timer
 
-	finishChan      chan struct{}
-	cancel          func()
-	updateChan      chan updateRequest
+	finishChan chan struct{}
+	cancel     func()
+
+	// for outside in requests
+	updateChan chan updateRequest
+	// for inside out responses
+	updateResultChan chan updateResult
+
 	fetchLeaderChan chan fetchLeaderRequest
 
 	state         State
-	stateSeq      uint64
+	stateTerm     uint64
 	stateVersion  uint64
 	lastUpdate    map[string]time.Time
 	nextAddrIndex int
 
-	leaderNodeID uuid.UUID
-	leaderAddr   string
+	leader nodeID
 
 	leaderWaitList  []chan<- string
 	runnerIsRunning bool
@@ -55,28 +66,25 @@ type leaderWatcher struct {
 }
 
 func newCoreService(
-	methods Interface, addr string, nodeTimestamp uint64,
-	nodeID uuid.UUID, options serviceOptions,
+	methods callbacks, selfID nodeID, options serviceOptions,
 ) *coreService {
 	finishChan := make(chan struct{}, 1)
 	updateChan := make(chan updateRequest, 256)
+	updateResultChan := make(chan updateResult, 16)
 	fetchLeaderChan := make(chan fetchLeaderRequest, 128)
 	return &coreService{
 		methods: methods,
-
-		selfAddr:          addr,
-		selfNodeTimestamp: nodeTimestamp,
-		selfNodeID:        nodeID,
-
+		self:    selfID,
 		options: options,
 
 		getNow:      func() time.Time { return time.Now() },
 		syncTimer:   newTimer(),
 		expireTimer: newTimer(),
 
-		finishChan:      finishChan,
-		updateChan:      updateChan,
-		fetchLeaderChan: fetchLeaderChan,
+		finishChan:       finishChan,
+		updateChan:       updateChan,
+		updateResultChan: updateResultChan,
+		fetchLeaderChan:  fetchLeaderChan,
 
 		lastUpdate:    map[string]time.Time{},
 		nextAddrIndex: 0,
@@ -119,7 +127,7 @@ func (s *coreService) updateWithState(inputState State) {
 
 	newState := combineStates(s.state, inputState)
 	for newAddr, newEntry := range newState {
-		if newAddr == s.selfAddr {
+		if newAddr == s.self.addr {
 			continue
 		}
 
@@ -138,50 +146,37 @@ func (s *coreService) updateWithState(inputState State) {
 }
 
 func (s *coreService) callUpdateRemote(ctx context.Context, addr string) {
-	ctx, cancel := context.WithTimeout(ctx, s.options.callRemoteTimeout)
-	defer cancel()
-
-	remoteState, err := s.methods.UpdateRemote(ctx, addr, s.state)
-	if err != nil {
-		// TODO logging
-		fmt.Println("Error:", err)
-		return
-	}
-	s.updateWithState(remoteState)
-}
-
-func (s *coreService) initAndCall(ctx context.Context, addr string) {
-	s.methods.InitConn(addr)
-	s.callUpdateRemote(ctx, addr)
+	s.methods.updateRemote(ctx, addr, s.state, s.updateResultChan)
 }
 
 func (s *coreService) startLeader(ctx context.Context) {
-	if !s.runnerIsRunning && s.leaderNodeID == s.selfNodeID {
+	// TODO tests
+	if !s.runnerIsRunning && s.leader == s.self {
 		startCtx, cancel := context.WithCancel(ctx)
 		s.cancel = cancel
-		s.methods.Start(startCtx, s.finishChan)
+		s.methods.start(startCtx, s.finishChan)
 		s.runnerIsRunning = true
 	}
 }
 
 func (s *coreService) computeAndStartLeader(ctx context.Context) {
-	leaderID, leaderAddr := s.state.computeLeader(
-		s.selfAddr, s.getNow().Add(-s.options.expireDuration), s.lastUpdate)
+	newLeader := s.state.computeLeader(
+		s.self.addr, s.getNow().Add(-s.options.expireDuration), s.lastUpdate)
 
-	if s.leaderNodeID == s.selfNodeID && leaderID != s.selfNodeID {
+	// TODO only if running
+	if s.leader == s.self && newLeader != s.self {
 		s.cancel()
 	}
 
-	if s.leaderAddr != leaderAddr {
+	if s.leader.addr != newLeader.addr {
 		for i, waiter := range s.leaderWaitList {
-			waiter <- leaderAddr
+			waiter <- newLeader.addr
 			s.leaderWaitList[i] = nil
 		}
 		s.leaderWaitList = s.leaderWaitList[:0]
 	}
 
-	s.leaderNodeID = leaderID
-	s.leaderAddr = leaderAddr
+	s.leader = newLeader
 
 	s.startLeader(ctx)
 }
@@ -189,20 +184,41 @@ func (s *coreService) computeAndStartLeader(ctx context.Context) {
 func (s *coreService) init(ctx context.Context) {
 	s.syncTimer.Reset(s.options.syncDuration)
 
-	s.stateSeq = 1
+	s.stateTerm = 1
 	s.stateVersion = 1
 	newState := map[string]Entry{
-		s.selfAddr: {
-			Seq:       s.stateSeq,
-			Timestamp: s.selfNodeTimestamp,
-			NodeID:    s.selfNodeID,
+		s.self.addr: {
+			Term:      s.stateTerm,
+			Timestamp: s.self.timestamp,
 			Version:   s.stateVersion,
 		},
 	}
 	s.state = newState
 
 	for _, remoteAddr := range s.options.remoteAddresses {
-		s.initAndCall(ctx, remoteAddr)
+		s.callUpdateRemote(ctx, remoteAddr)
+	}
+}
+
+func (s *coreService) handleSyncTimerExpired(ctx context.Context) {
+	s.stateVersion++
+	newEntry := Entry{
+		Term:      s.stateTerm,
+		Timestamp: s.self.timestamp,
+		Version:   s.stateVersion,
+	}
+	newTerm, updated := s.state.checkUpdated(s.self.addr, newEntry)
+	if !updated {
+		s.stateTerm = newTerm
+		newEntry.Term = newTerm
+	}
+	s.state = s.state.putEntry(s.self.addr, newEntry)
+
+	// TODO add test
+	if len(s.options.remoteAddresses) > 0 {
+		remoteAddr := s.options.remoteAddresses[s.nextAddrIndex]
+		s.nextAddrIndex += (s.nextAddrIndex + 1) % len(s.options.remoteAddresses)
+		s.callUpdateRemote(ctx, remoteAddr)
 	}
 	s.computeAndStartLeader(ctx)
 }
@@ -216,28 +232,7 @@ func (s *coreService) run(ctx context.Context) {
 
 	case <-s.syncTimer.Chan():
 		s.syncTimer.ResetAfterChan(s.options.syncDuration)
-
-		s.stateVersion++
-		newEntry := Entry{
-			Seq:       s.stateSeq,
-			Timestamp: s.selfNodeTimestamp,
-			NodeID:    s.selfNodeID,
-			Version:   s.stateVersion,
-		}
-		newSeq, updated := s.state.checkUpdated(s.selfAddr, newEntry)
-		if !updated {
-			s.stateSeq = newSeq
-			newEntry.Seq = newSeq
-		}
-		s.state = s.state.putEntry(s.selfAddr, newEntry)
-
-		// TODO add test
-		if len(s.options.remoteAddresses) > 0 {
-			remoteAddr := s.options.remoteAddresses[s.nextAddrIndex]
-			s.nextAddrIndex += (s.nextAddrIndex + 1) % len(s.options.remoteAddresses)
-			s.callUpdateRemote(ctx, remoteAddr)
-		}
-		s.computeAndStartLeader(ctx)
+		s.handleSyncTimerExpired(ctx)
 
 	case <-s.expireTimer.Chan():
 		s.expireTimer.ResetAfterChan(hundredYears)
@@ -246,8 +241,8 @@ func (s *coreService) run(ctx context.Context) {
 		s.computeAndStartLeader(ctx)
 
 	case req := <-s.fetchLeaderChan:
-		if req.lastLeader != s.leaderAddr {
-			req.respChan <- s.leaderAddr
+		if req.lastLeader != s.leader.addr {
+			req.respChan <- s.leader.addr
 			return
 		}
 		s.leaderWaitList = append(s.leaderWaitList, req.respChan)
@@ -257,10 +252,9 @@ func (s *coreService) run(ctx context.Context) {
 		s.startLeader(ctx)
 
 	case <-ctx.Done():
-		s.state = s.state.putEntry(s.selfAddr, Entry{
-			Seq:       s.stateSeq,
-			Timestamp: s.selfNodeTimestamp,
-			NodeID:    s.selfNodeID,
+		s.state = s.state.putEntry(s.self.addr, Entry{
+			Term:      s.stateTerm,
+			Timestamp: s.self.timestamp,
 			Version:   s.stateVersion,
 			OutOfSync: true,
 		})
