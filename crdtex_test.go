@@ -568,111 +568,110 @@ func TestCombineStates(t *testing.T) {
 	}
 }
 
-//
-//func TestCheckUpdated(t *testing.T) {
-//	table := []struct {
-//		name     string
-//		state    State
-//		newAddr  string
-//		newEntry Entry
-//		newSeq   uint64
-//		updated  bool
-//	}{
-//		{
-//			name:    "entry-not-existed",
-//			newAddr: "address1",
-//			newEntry: Entry{
-//				Seq:     1,
-//				NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
-//				Version: 10,
-//			},
-//			updated: true,
-//		},
-//		{
-//			name: "entry-existed-different-id-seq-less",
-//			state: map[string]Entry{
-//				"address1": {
-//					Seq:     5,
-//					NodeID:  uuid.MustParse("cda641f5-0770-4ef7-9d58-0d6b3e75a355"),
-//					Version: 10,
-//				},
-//			},
-//			newAddr: "address1",
-//			newEntry: Entry{
-//				Seq:     4,
-//				NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
-//				Version: 20,
-//			},
-//			newSeq:  6,
-//			updated: false,
-//		},
-//		{
-//			name: "entry-existed-same-seq-id-less",
-//			state: map[string]Entry{
-//				"address1": {
-//					Seq:     5,
-//					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
-//					Version: 10,
-//				},
-//			},
-//			newAddr: "address1",
-//			newEntry: Entry{
-//				Seq:     5,
-//				NodeID:  uuid.MustParse("a1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
-//				Version: 20,
-//			},
-//			newSeq:  6,
-//			updated: false,
-//		},
-//		{
-//			name: "entry-existed-seq-less-id-greater",
-//			state: map[string]Entry{
-//				"address1": {
-//					Seq:     5,
-//					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
-//					Version: 10,
-//				},
-//			},
-//			newAddr: "address1",
-//			newEntry: Entry{
-//				Seq:     4,
-//				NodeID:  uuid.MustParse("c1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
-//				Version: 20,
-//			},
-//			newSeq:  5,
-//			updated: false,
-//		},
-//		{
-//			name: "entry-existed-same-id-same-seq-version-greater",
-//			state: map[string]Entry{
-//				"address1": {
-//					Seq:     5,
-//					NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
-//					Version: 10,
-//				},
-//			},
-//			newAddr: "address1",
-//			newEntry: Entry{
-//				Seq:     5,
-//				NodeID:  uuid.MustParse("b1a641f5-0770-4ef7-9d58-0d6b3e75a355"),
-//				Version: 11,
-//			},
-//			updated: true,
-//		},
-//	}
-//
-//	for _, tc := range table {
-//		e := tc
-//		t.Run(e.name, func(t *testing.T) {
-//			t.Parallel()
-//
-//			newSeq, updated := e.state.checkUpdated(e.newAddr, e.newEntry)
-//			assert.Equal(t, e.updated, updated)
-//			assert.Equal(t, e.newSeq, newSeq)
-//		})
-//	}
-//}
-//
+func TestCheckUpdated(t *testing.T) {
+	table := []struct {
+		name     string
+		state    State
+		newAddr  string
+		newEntry Entry
+		newTerm  uint64
+		updated  bool
+	}{
+		{
+			name:    "entry-not-existed",
+			newAddr: "address1",
+			newEntry: Entry{
+				Term:      1,
+				Timestamp: 100,
+				Version:   10,
+			},
+			updated: true,
+		},
+		{
+			name: "entry-existed-smaller-timestamp-term-less",
+			state: map[string]Entry{
+				"address1": {
+					Term:      5,
+					Timestamp: 100,
+					Version:   10,
+				},
+			},
+			newAddr: "address1",
+			newEntry: Entry{
+				Term:      4,
+				Timestamp: 80,
+				Version:   20,
+			},
+			newTerm: 6,
+			updated: false,
+		},
+		{
+			name: "entry-existed-same-term-timestamp-less",
+			state: map[string]Entry{
+				"address1": {
+					Term:      5,
+					Timestamp: 100,
+					Version:   10,
+				},
+			},
+			newAddr: "address1",
+			newEntry: Entry{
+				Term:      5,
+				Timestamp: 80,
+				Version:   20,
+			},
+			newTerm: 6,
+			updated: false,
+		},
+		{
+			name: "entry-existed-term-less-timestamp-greater",
+			state: map[string]Entry{
+				"address1": {
+					Term:      5,
+					Timestamp: 100,
+					Version:   10,
+				},
+			},
+			newAddr: "address1",
+			newEntry: Entry{
+				Term:      4,
+				Timestamp: 120,
+				Version:   20,
+			},
+			newTerm: 5,
+			updated: false,
+		},
+		{
+			name: "entry-existed-same-timestamp-same-term-version-greater",
+			state: map[string]Entry{
+				"address1": {
+					Term:      5,
+					Timestamp: 100,
+					Version:   10,
+				},
+			},
+			newAddr: "address1",
+			newEntry: Entry{
+				Term:      5,
+				Timestamp: 100,
+				Version:   11,
+			},
+			updated: true,
+		},
+	}
+
+	for _, tc := range table {
+		e := tc
+		t.Run(e.name, func(t *testing.T) {
+			t.Parallel()
+
+			newTerm, updated := e.state.checkUpdated(e.newAddr, e.newEntry)
+			assert.Equal(t, e.updated, updated)
+			assert.Equal(t, e.newTerm, newTerm)
+		})
+	}
+}
+
 //func TestComputeLeader(t *testing.T) {
 //	table := []struct {
 //		name         string
