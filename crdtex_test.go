@@ -3,6 +3,7 @@ package crdtex
 import (
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestBoolLess(t *testing.T) {
@@ -672,137 +673,328 @@ func TestCheckUpdated(t *testing.T) {
 	}
 }
 
-//func TestComputeLeader(t *testing.T) {
-//	table := []struct {
-//		name         string
-//		selfAddr     string
-//		minTime      time.Time
-//		lastUpdate   map[string]time.Time
-//		state        State
-//		expectedID   uuid.UUID
-//		expectedAddr string
-//	}{
-//		{
-//			name:     "is-self-addr",
-//			selfAddr: "address-1",
-//			state: map[string]Entry{
-//				"address-1": {
-//					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//			},
-//			minTime:      mustParse("2021-06-05T10:20:00Z"),
-//			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//			expectedAddr: "address-1",
-//		},
-//		{
-//			name:     "existing-node",
-//			selfAddr: "address-1",
-//			state: map[string]Entry{
-//				"address-1": {
-//					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//				"address-2": {
-//					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//			},
-//			minTime: mustParse("2021-06-05T10:20:00Z"),
-//			lastUpdate: map[string]time.Time{
-//				"address-2": mustParse("2021-06-05T10:20:01Z"),
-//			},
-//			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//			expectedAddr: "address-2",
-//		},
-//		{
-//			name:     "existing-node-out-of-sync",
-//			selfAddr: "address-1",
-//			state: map[string]Entry{
-//				"address-1": {
-//					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//				"address-2": {
-//					NodeID:    uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
-//					OutOfSync: true,
-//				},
-//			},
-//			minTime: mustParse("2021-06-05T10:20:00Z"),
-//			lastUpdate: map[string]time.Time{
-//				"address-2": mustParse("2021-06-05T10:20:01Z"),
-//			},
-//			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//			expectedAddr: "address-1",
-//		},
-//		{
-//			name:     "existing-nodes-no-last-update",
-//			selfAddr: "address-1",
-//			state: map[string]Entry{
-//				"address-1": {
-//					NodeID: uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//				"address-2": {
-//					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//				"address-3": {
-//					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//			},
-//			minTime:      mustParse("2021-06-05T10:20:00Z"),
-//			lastUpdate:   map[string]time.Time{},
-//			expectedID:   uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
-//			expectedAddr: "address-1",
-//		},
-//		{
-//			name:     "existing-nodes-with-last-update-greater",
-//			selfAddr: "address-1",
-//			state: map[string]Entry{
-//				"address-1": {
-//					NodeID: uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//				"address-2": {
-//					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//				"address-3": {
-//					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//			},
-//			minTime: mustParse("2021-06-05T10:20:00Z"),
-//			lastUpdate: map[string]time.Time{
-//				"address-3": mustParse("2021-06-05T10:20:01Z"),
-//			},
-//			expectedID:   uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//			expectedAddr: "address-3",
-//		},
-//		{
-//			name:     "existing-nodes-with-last-update-equals-min",
-//			selfAddr: "address-1",
-//			state: map[string]Entry{
-//				"address-1": {
-//					NodeID: uuid.MustParse("c93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//				"address-2": {
-//					NodeID: uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//				"address-3": {
-//					NodeID: uuid.MustParse("a93cb116-6b95-4d8e-893f-86106185b638"),
-//				},
-//			},
-//			minTime: mustParse("2021-06-05T10:20:00Z"),
-//			lastUpdate: map[string]time.Time{
-//				"address-3": mustParse("2021-06-05T10:20:00Z"),
-//				"address-2": mustParse("2021-06-05T10:20:01Z"),
-//			},
-//			expectedID:   uuid.MustParse("b93cb116-6b95-4d8e-893f-86106185b638"),
-//			expectedAddr: "address-2",
-//		},
-//	}
-//
-//	for _, tc := range table {
-//		e := tc
-//		t.Run(e.name, func(t *testing.T) {
-//			t.Parallel()
-//
-//			id, addr := e.state.computeLeader(e.selfAddr, e.minTime, e.lastUpdate)
-//			assert.Equal(t, e.expectedID, id)
-//			assert.Equal(t, e.expectedAddr, addr)
-//		})
-//	}
-//}
+func TestPutEntry(t *testing.T) {
+	t.Parallel()
+
+	s := State{
+		"address-1": {
+			Term:      4,
+			Timestamp: 110,
+			Version:   10,
+			OutOfSync: false,
+		},
+	}
+
+	result := s.putEntry("address-2", Entry{
+		Term:      3,
+		Timestamp: 80,
+		Version:   5,
+		OutOfSync: true,
+	})
+	assert.Equal(t, State{
+		"address-1": {
+			Term:      4,
+			Timestamp: 110,
+			Version:   10,
+			OutOfSync: false,
+		},
+		"address-2": {
+			Term:      3,
+			Timestamp: 80,
+			Version:   5,
+			OutOfSync: true,
+		},
+	}, result)
+
+	assert.Equal(t, State{
+		"address-1": {
+			Term:      4,
+			Timestamp: 110,
+			Version:   10,
+			OutOfSync: false,
+		},
+	}, s)
+}
+
+func TestNodeIDLess(t *testing.T) {
+	t.Parallel()
+
+	table := []struct {
+		name     string
+		a        nodeID
+		b        nodeID
+		expected bool
+	}{
+		{
+			name:     "both-empty",
+			expected: false,
+		},
+		{
+			name: "a-timestamp-greater",
+			a: nodeID{
+				timestamp: 100,
+				addr:      "address1",
+			},
+			b: nodeID{
+				timestamp: 80,
+				addr:      "address2",
+			},
+			expected: false,
+		},
+		{
+			name: "a-timestamp-equal",
+			a: nodeID{
+				timestamp: 100,
+			},
+			b: nodeID{
+				timestamp: 100,
+			},
+			expected: false,
+		},
+		{
+			name: "a-timestamp-less",
+			a: nodeID{
+				timestamp: 80,
+			},
+			b: nodeID{
+				timestamp: 100,
+			},
+			expected: true,
+		},
+		{
+			name: "addr-greater",
+			a: nodeID{
+				timestamp: 100,
+				addr:      "address2",
+			},
+			b: nodeID{
+				timestamp: 100,
+				addr:      "address1",
+			},
+			expected: false,
+		},
+		{
+			name: "addr-equal",
+			a: nodeID{
+				timestamp: 100,
+				addr:      "address",
+			},
+			b: nodeID{
+				timestamp: 100,
+				addr:      "address",
+			},
+			expected: false,
+		},
+		{
+			name: "addr-less",
+			a: nodeID{
+				timestamp: 100,
+				addr:      "address1",
+			},
+			b: nodeID{
+				timestamp: 100,
+				addr:      "address2",
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range table {
+		e := tc
+		t.Run(e.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := nodeIDLess(e.a, e.b)
+			assert.Equal(t, e.expected, result)
+		})
+	}
+}
+
+func TestComputeLeader(t *testing.T) {
+	table := []struct {
+		name       string
+		selfAddr   string
+		minTime    time.Time
+		lastUpdate map[string]time.Time
+		state      State
+
+		expected nodeID
+	}{
+		{
+			name:     "is-self-addr",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					Timestamp: 100,
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			expected: nodeID{
+				timestamp: 100,
+				addr:      "address-1",
+			},
+		},
+		{
+			name:     "existing-node",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					Timestamp: 120,
+				},
+				"address-2": {
+					Timestamp: 100,
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{
+				"address-2": mustParse("2021-06-05T10:20:01Z"),
+			},
+			expected: nodeID{
+				timestamp: 100,
+				addr:      "address-2",
+			},
+		},
+		{
+			name:     "existing-node-out-of-sync",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					Timestamp: 100,
+				},
+				"address-2": {
+					Timestamp: 80,
+					OutOfSync: true,
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{
+				"address-2": mustParse("2021-06-05T10:20:01Z"),
+			},
+			expected: nodeID{
+				timestamp: 100,
+				addr:      "address-1",
+			},
+		},
+		{
+			name:     "existing-nodes-no-last-update",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					Timestamp: 140,
+				},
+				"address-2": {
+					Timestamp: 120,
+				},
+				"address-3": {
+					Timestamp: 100,
+				},
+			},
+			minTime:    mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{},
+			expected: nodeID{
+				timestamp: 140,
+				addr:      "address-1",
+			},
+		},
+		{
+			name:     "existing-nodes-with-last-update-greater",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					Timestamp: 140,
+				},
+				"address-2": {
+					Timestamp: 120,
+				},
+				"address-3": {
+					Timestamp: 100,
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{
+				"address-3": mustParse("2021-06-05T10:20:01Z"),
+			},
+			expected: nodeID{
+				timestamp: 100,
+				addr:      "address-3",
+			},
+		},
+		{
+			name:     "existing-nodes-with-last-update-equals-min",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					Timestamp: 140,
+				},
+				"address-2": {
+					Timestamp: 120,
+				},
+				"address-3": {
+					Timestamp: 100,
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{
+				"address-3": mustParse("2021-06-05T10:20:00Z"),
+				"address-2": mustParse("2021-06-05T10:20:01Z"),
+			},
+			expected: nodeID{
+				timestamp: 120,
+				addr:      "address-2",
+			},
+		},
+		{
+			name:     "only-self-out-of-sync",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					Timestamp: 100,
+					Version:   10,
+					OutOfSync: true,
+				},
+			},
+			minTime:    mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{},
+			expected: nodeID{
+				timestamp: 100,
+				addr:      "address-1",
+			},
+		},
+		{
+			name:     "same-timestamp",
+			selfAddr: "address-1",
+			state: map[string]Entry{
+				"address-1": {
+					Timestamp: 100,
+					Version:   10,
+				},
+				"address-2": {
+					Timestamp: 100,
+					Version:   10,
+				},
+				"address-0": {
+					Timestamp: 100,
+					Version:   10,
+				},
+			},
+			minTime: mustParse("2021-06-05T10:20:00Z"),
+			lastUpdate: map[string]time.Time{
+				"address-0": mustParse("2021-06-05T10:20:01Z"),
+				"address-2": mustParse("2021-06-05T10:20:01Z"),
+			},
+			expected: nodeID{
+				timestamp: 100,
+				addr:      "address-0",
+			},
+		},
+	}
+
+	for _, tc := range table {
+		e := tc
+		t.Run(e.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := e.state.computeLeader(e.selfAddr, e.minTime, e.lastUpdate)
+			assert.Equal(t, e.expected, result)
+		})
+	}
+}
